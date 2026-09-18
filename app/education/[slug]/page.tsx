@@ -1,2 +1,327 @@
-import {notFound} from 'next/navigation';import Link from 'next/link';import {ArrowLeft,CheckCircle2,PlayCircle} from 'lucide-react';import {courses} from '@/lib/data';import {LeadForm} from '@/components/lead-form';
-export default async function Course({params}:{params:{slug:string}}){const c=courses.find(x=>x.slug===params.slug);if(!c)return notFound();return <main className="detail"><div className="container"><Link href="/education" className="muted" style={{fontSize:12,display:'inline-flex',gap:6,alignItems:'center',marginBottom:25}}><ArrowLeft size={13}/> Learning catalogue</Link><div className="split"><div><div className="eyebrow">{c.category}</div><h1 className="display" style={{fontSize:56,lineHeight:1.02}}>{c.title}</h1><p className="copy" style={{fontSize:16}}>A structured programme for people who want to understand the fundamentals, practice deliberately and finish with something tangible.</p><div className="actions"><button className="btn btn-dark"><PlayCircle size={15}/> Start enquiry</button></div></div><div className="portrait" style={{height:420,backgroundImage:`url(${c.image})`}}/></div><div className="detail-grid" style={{marginTop:50}}><div><h2 className="display" style={{fontSize:34}}>What you'll work through</h2><ul className="feature-list"><li><CheckCircle2/>Clear weekly learning goals</li><li><CheckCircle2/>Practical exercises and project work</li><li><CheckCircle2/>Mentor feedback and guided resources</li><li><CheckCircle2/>A completion plan you can carry forward</li></ul></div><LeadForm title="Enquire about this course"/></div></div></main>}
+import Link from "next/link";
+import {
+  ArrowLeft,
+  ArrowUpRight,
+  BookOpen,
+  CalendarDays,
+  CheckCircle2,
+  Clock3,
+  PlayCircle,
+  ShieldCheck,
+  Users,
+} from "lucide-react";
+
+import { courses } from "@/lib/data";
+
+export default async function CourseDetails({
+  params,
+}: {
+  params: Promise<{ slug: string }>;
+}) {
+  const { slug } = await params;
+
+  const course = courses.find(
+    (item) => item.slug === slug
+  );
+
+  if (!course) {
+    return (
+      <main>
+
+        <section className="section">
+
+          <div className="container">
+
+            <div className="eyebrow">
+              Learning
+            </div>
+
+            <h1>
+              Course not found.
+            </h1>
+
+            <Link
+              href="/education"
+              className="btn btn-dark"
+              style={{ marginTop: 20 }}
+            >
+              <ArrowLeft size={15} />
+              Back to courses
+            </Link>
+
+          </div>
+
+        </section>
+
+      </main>
+    );
+  }
+
+  return (
+    <main>
+
+      {/* =====================================================
+          COURSE HERO
+      ===================================================== */}
+
+      <section className="course-detail-hero">
+
+        <div className="container">
+
+          <Link
+            href="/education"
+            className="course-back"
+          >
+            <ArrowLeft size={15} />
+            Back to courses
+          </Link>
+
+
+          <div className="course-detail-grid">
+
+            <div className="course-detail-copy">
+
+              <div className="eyebrow">
+                {course.category}
+              </div>
+
+              <h1>
+                {course.title}
+              </h1>
+
+              <p className="course-detail-description">
+                {course.description}
+              </p>
+
+
+              <div className="course-detail-stats">
+
+                <span>
+                  <Clock3 size={16} />
+                  {course.duration}
+                </span>
+
+                <span>
+                  <BookOpen size={16} />
+                  {course.lessons} lessons
+                </span>
+
+                <span>
+                  <Users size={16} />
+                  {course.level}
+                </span>
+
+              </div>
+
+
+              <div className="course-detail-price">
+
+                <strong>
+                  ₹{course.price.toLocaleString("en-IN")}
+                </strong>
+
+                <span>
+                  One-time course fee
+                </span>
+
+              </div>
+
+
+              <Link
+                href={`/education/${course.slug}/checkout`}
+                className="btn btn-dark course-buy-button"
+              >
+                Buy this course
+                <ArrowUpRight size={15} />
+              </Link>
+
+            </div>
+
+
+            <div
+              className="course-detail-image"
+              style={{
+                backgroundImage:
+                  `url(${course.image})`,
+              }}
+            />
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      {/* =====================================================
+          COURSE INFORMATION
+      ===================================================== */}
+
+      <section className="section">
+
+        <div className="container course-info-grid">
+
+          <div>
+
+            <div className="eyebrow">
+              What you will learn
+            </div>
+
+            <h2 className="display">
+              Practical knowledge you can use.
+            </h2>
+
+
+            <div className="course-highlights">
+
+              {course.highlights.map(
+                (highlight: string) => (
+
+                  <div key={highlight}>
+
+                    <CheckCircle2 size={18} />
+
+                    <span>
+                      {highlight}
+                    </span>
+
+                  </div>
+
+                )
+              )}
+
+            </div>
+
+          </div>
+
+
+          <aside className="course-info-card">
+
+            <div className="eyebrow">
+              Course information
+            </div>
+
+            <h3>
+              {course.title}
+            </h3>
+
+            <div className="course-info-row">
+              <span>Instructor</span>
+              <strong>{course.instructor}</strong>
+            </div>
+
+            <div className="course-info-row">
+              <span>Format</span>
+              <strong>{course.format}</strong>
+            </div>
+
+            <div className="course-info-row">
+              <span>Duration</span>
+              <strong>{course.duration}</strong>
+            </div>
+
+            <div className="course-info-row">
+              <span>Language</span>
+              <strong>{course.language}</strong>
+            </div>
+
+            <div className="course-info-row">
+              <span>Lessons</span>
+              <strong>{course.lessons}</strong>
+            </div>
+
+          </aside>
+
+        </div>
+
+      </section>
+
+
+      {/* =====================================================
+          COURSE PROCESS
+      ===================================================== */}
+
+      <section className="section course-process-section">
+
+        <div className="container">
+
+          <div className="eyebrow">
+            How it works
+          </div>
+
+          <h2 className="display">
+            From enrollment to learning.
+          </h2>
+
+
+          <div className="course-process-grid">
+
+            <div>
+              <span>01</span>
+              <BookOpen size={21} />
+              <h3>Choose your course</h3>
+              <p>
+                Review the course details and decide
+                whether it matches your learning goal.
+              </p>
+            </div>
+
+            <div>
+              <span>02</span>
+              <ShieldCheck size={21} />
+              <h3>Complete payment</h3>
+              <p>
+                Complete the secure online payment
+                through the checkout process.
+              </p>
+            </div>
+
+            <div>
+              <span>03</span>
+              <PlayCircle size={21} />
+              <h3>Start learning</h3>
+              <p>
+                After successful enrollment, receive
+                the information needed to begin.
+              </p>
+            </div>
+
+          </div>
+
+        </div>
+
+      </section>
+
+
+      {/* =====================================================
+          FINAL CTA
+      ===================================================== */}
+
+      <section className="course-final-cta">
+
+        <div className="container">
+
+          <h2>
+            Ready to start learning?
+          </h2>
+
+          <p>
+            Enroll in {course.title} and begin your
+            learning journey with Divyajyoti.
+          </p>
+
+          <Link
+            href={`/education/${course.slug}/checkout`}
+            className="btn btn-gold"
+          >
+            Buy this course
+            <ArrowUpRight size={15} />
+          </Link>
+
+        </div>
+
+      </section>
+
+    </main>
+  );
+}

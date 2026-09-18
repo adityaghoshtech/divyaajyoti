@@ -30,6 +30,48 @@ export default function Astrology() {
 
     <section className="section" id="vastu"><div className="container vastu-card"><div className="vastu-visual"/><div className="vastu-copy"><div className="eyebrow">Vastu guidance</div><h2 className="display">Practical suggestions for your space.</h2><p>We look at the layout, direction and use of your home or workspace and explain suggestions in simple language.</p><div className="intro-points"><span><Check/> Home & office</span><span><Check/> Floor plan review</span><span><Check/> Simple changes</span><span><Check/> Clear explanation</span></div><Link className="btn btn-dark" href="/consultation">Ask about Vastu <ArrowUpRight size={15}/></Link></div></div></section>
 
-    <section className="section final-cta"><div className="container final-cta-inner"><div className="eyebrow">Ready when you are</div><h2 className="display">Start learning or book a private session.</h2><p>Tell us what you need and we will help you choose the right place to begin.</p><div className="actions"><Link className="btn btn-gold" href="#classes">Explore classes <ArrowRight size={15}/></Link><Link className="btn btn-white" href="/consultation">Book consultation <ArrowUpRight size={15}/></Link></div></div></section>
+    <section className="final-cta">
+  <div className="container final-cta-inner">
+
+    <div className="final-cta-content">
+
+      <div className="eyebrow">
+        Ready when you are
+      </div>
+
+      <h2>
+        Start learning or book a private session.
+      </h2>
+
+      <p>
+        Tell us what you need and we will help you
+        choose the right place to begin.
+      </p>
+
+      <div className="actions">
+
+        <Link
+          className="btn btn-gold"
+          href="#classes"
+        >
+          Explore classes
+          <ArrowRight size={15} />
+        </Link>
+
+        <Link
+          className="btn btn-white"
+          href="/consultation"
+        >
+          Book consultation
+          <ArrowUpRight size={15} />
+        </Link>
+
+      </div>
+
+    </div>
+
+  </div>
+</section>
   </main>
 }
+

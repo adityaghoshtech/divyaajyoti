@@ -9,6 +9,7 @@
  */
 
 import type * as consultations from "../consultations.js";
+import type * as courses from "../courses.js";
 import type * as leads from "../leads.js";
 import type * as properties from "../properties.js";
 
@@ -20,6 +21,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   consultations: typeof consultations;
+  courses: typeof courses;
   leads: typeof leads;
   properties: typeof properties;
 }>;
