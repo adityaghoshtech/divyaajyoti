@@ -899,87 +899,70 @@ courseEnrollments: defineTable({
   // =========================================================
 
   courseMaterials: defineTable({
+  courseSlug: v.string(),
 
-    courseSlug:
-      v.string(),
+  title: v.string(),
 
-    title:
-      v.string(),
+  type: v.string(),
 
+  description: v.optional(
+    v.string(),
+  ),
 
-    /*
-     * VIDEO
-     * PDF
-     * NOTE
-     * LINK
-     * RESOURCE
-     */
+  // External URL.
+  //
+  // Examples:
+  // Google Meet link
+  // YouTube recording
+  // Google Drive
+  // External resource
+  url: v.optional(
+    v.string(),
+  ),
 
-    type:
-      v.string(),
+  // Convex Storage file.
+  //
+  // Used mainly for PDFs / documents.
+  storageId: v.optional(
+    v.string(),
+  ),
 
+  // Ordering inside the course.
+  sortOrder: v.number(),
 
-    description:
-      v.optional(
-        v.string(),
-      ),
+  // PUBLISHED / DRAFT / HIDDEN
+  status: v.string(),
 
+  // Used only for LIVE classes.
+  //
+  // Example:
+  // 2026-09-25 18:00
+  liveAt: v.optional(
+    v.number(),
+  ),
 
-    /*
-     * External URL
-     */
+  // Used only for LIVE classes.
+  //
+  // Example:
+  // 2026-09-25 20:00
+  liveEndAt: v.optional(
+    v.number(),
+  ),
 
-    url:
-      v.optional(
-        v.string(),
-      ),
+  createdAt: v.number(),
 
-
-    /*
-     * Convex Storage file.
-     *
-     * Kept as string for compatibility with your
-     * existing records.
-     */
-
-    storageId:
-      v.optional(
-        v.string(),
-      ),
-
-
-    sortOrder:
-      v.number(),
-
-
-    /*
-     * PUBLISHED
-     * DRAFT
-     */
-
-    status:
-      v.string(),
-
-
-    createdAt:
-      v.number(),
-
-    updatedAt:
-      v.optional(
-        v.number(),
-      ),
-
-  })
-
-    .index(
-      "by_course",
-      ["courseSlug"],
-    )
-
-    .index(
-      "by_status",
-      ["status"],
-    ),
+  updatedAt: v.optional(
+    v.number(),
+  ),
+})
+  .index(
+    "by_course",
+    ["courseSlug"],
+  )
+  .index(
+    "by_status",
+    ["status"],
+  ),
 
 
   // =========================================================

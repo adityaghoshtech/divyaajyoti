@@ -33,24 +33,40 @@ export default function CourseDetailPage() {
       : "skip",
   );
 
+  /* =====================================================
+     LOADING
+  ===================================================== */
+
   if (course === undefined) {
     return (
       <main className="course-detail-page">
+
         <section className="course-detail-hero">
+
           <div className="education-container">
+
             <div className="course-detail-loading">
               Loading course...
             </div>
+
           </div>
+
         </section>
+
       </main>
     );
   }
 
+  /* =====================================================
+     COURSE NOT FOUND
+  ===================================================== */
+
   if (course === null) {
     return (
       <main className="course-detail-page">
+
         <section className="course-detail-hero">
+
           <div className="education-container">
 
             <Link
@@ -86,11 +102,18 @@ export default function CourseDetailPage() {
               </Link>
 
             </div>
+
           </div>
+
         </section>
+
       </main>
     );
   }
+
+  /* =====================================================
+     MAIN IMAGE
+  ===================================================== */
 
   const mainImage =
     course.image ||
@@ -101,20 +124,36 @@ export default function CourseDetailPage() {
     ) ||
     "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1600&q=85";
 
+  /* =====================================================
+     LESSON COUNT
+  ===================================================== */
+
   const lessonCount =
-  Array.isArray(course.lessons)
-    ? course.lessons.length
-    : Number(course.lessons || 0);
+    Array.isArray(course.lessons)
+      ? course.lessons.length
+      : Number(course.lessons || 0);
+
+  /* =====================================================
+     PRICE
+  ===================================================== */
 
   const price =
     typeof course.price === "number"
       ? course.price
       : 0;
 
+  /* =====================================================
+     SYLLABUS
+  ===================================================== */
+
   const syllabus =
     Array.isArray(course.syllabus)
       ? course.syllabus
       : [];
+
+  /* =====================================================
+     GALLERY
+  ===================================================== */
 
   const gallery =
     Array.isArray(course.images)
@@ -142,6 +181,10 @@ export default function CourseDetailPage() {
 
           <div className="course-detail-grid">
 
+            {/* =================================================
+                LEFT
+            ================================================= */}
+
             <div className="course-detail-copy">
 
               <div className="eyebrow">
@@ -161,24 +204,31 @@ export default function CourseDetailPage() {
                 {course.description}
               </p>
 
+              {/* COURSE STATS */}
+
               <div className="course-detail-stats">
 
                 <span>
                   <Clock3 size={16} />
+
                   {course.duration}
                 </span>
 
                 <span>
                   <BookOpen size={16} />
+
                   {lessonCount} lessons
                 </span>
 
                 <span>
                   <UserRound size={16} />
+
                   {course.instructor}
                 </span>
 
               </div>
+
+              {/* PRICE */}
 
               <div className="course-detail-price">
 
@@ -192,6 +242,8 @@ export default function CourseDetailPage() {
 
               </div>
 
+              {/* ACTIONS */}
+
               <div className="course-detail-actions">
 
                 <Link
@@ -199,6 +251,7 @@ export default function CourseDetailPage() {
                   className="course-detail-button"
                 >
                   Buy This Course
+
                   <ArrowUpRight size={17} />
                 </Link>
 
@@ -212,6 +265,10 @@ export default function CourseDetailPage() {
               </div>
 
             </div>
+
+            {/* =================================================
+                RIGHT IMAGE
+            ================================================= */}
 
             <div className="course-detail-visual">
 
@@ -228,6 +285,7 @@ export default function CourseDetailPage() {
                 <GraduationCap size={17} />
 
                 <div>
+
                   <strong>
                     Divyajyoti Learning
                   </strong>
@@ -236,6 +294,7 @@ export default function CourseDetailPage() {
                     Practical knowledge.
                     Guided learning.
                   </span>
+
                 </div>
 
               </div>
@@ -243,9 +302,11 @@ export default function CourseDetailPage() {
             </div>
 
           </div>
+
         </div>
 
       </section>
+
 
       {/* =====================================================
           COURSE OVERVIEW
@@ -256,6 +317,8 @@ export default function CourseDetailPage() {
         <div className="education-container">
 
           <div className="course-content-grid">
+
+            {/* LEFT */}
 
             <div>
 
@@ -274,55 +337,92 @@ export default function CourseDetailPage() {
 
             </div>
 
+            {/* RIGHT INFO CARD */}
+
             <div className="course-info-card">
 
               <div className="course-info-row">
-                <span>Course</span>
+
+                <span>
+                  Course
+                </span>
+
                 <strong>
                   {course.title}
                 </strong>
+
               </div>
 
               <div className="course-info-row">
-                <span>Category</span>
+
+                <span>
+                  Category
+                </span>
+
                 <strong>
                   {course.category || "Learning"}
                 </strong>
+
               </div>
 
               <div className="course-info-row">
-                <span>Level</span>
+
+                <span>
+                  Level
+                </span>
+
                 <strong>
                   {course.level}
                 </strong>
+
               </div>
 
               <div className="course-info-row">
-                <span>Duration</span>
+
+                <span>
+                  Duration
+                </span>
+
                 <strong>
                   {course.duration}
                 </strong>
+
               </div>
 
               <div className="course-info-row">
-                <span>Lessons</span>
+
+                <span>
+                  Lessons
+                </span>
+
                 <strong>
                   {lessonCount}
                 </strong>
+
               </div>
 
               <div className="course-info-row">
-                <span>Instructor</span>
+
+                <span>
+                  Instructor
+                </span>
+
                 <strong>
                   {course.instructor}
                 </strong>
+
               </div>
 
               <div className="course-info-row course-fee-row">
-                <span>Course Fee</span>
+
+                <span>
+                  Course Fee
+                </span>
+
                 <strong>
                   ₹{price.toLocaleString("en-IN")}
                 </strong>
+
               </div>
 
             </div>
@@ -333,11 +433,13 @@ export default function CourseDetailPage() {
 
       </section>
 
+
       {/* =====================================================
-          WHAT YOU WILL LEARN
+          CURRICULUM
       ===================================================== */}
 
       {syllabus.length > 0 && (
+
         <section
           id="curriculum"
           className="course-curriculum-section"
@@ -367,6 +469,9 @@ export default function CourseDetailPage() {
 
             </div>
 
+
+            {/* SYLLABUS LIST */}
+
             <div className="course-syllabus">
 
               {syllabus.map(
@@ -378,12 +483,15 @@ export default function CourseDetailPage() {
                   >
 
                     <span className="course-syllabus-number">
+
                       {String(
                         index + 1,
                       ).padStart(2, "0")}
+
                     </span>
 
                     <div>
+
                       <h3>
                         {lesson}
                       </h3>
@@ -391,13 +499,16 @@ export default function CourseDetailPage() {
                       <p>
                         Module {index + 1}
                       </p>
+
                     </div>
 
-                                       <CheckCircle2 size={18} />
+                    <CheckCircle2
+                      size={18}
+                    />
 
                   </div>
 
-                )
+                ),
               )}
 
             </div>
@@ -405,7 +516,9 @@ export default function CourseDetailPage() {
           </div>
 
         </section>
+
       )}
+
 
       {/* =====================================================
           INSTRUCTOR
@@ -418,7 +531,9 @@ export default function CourseDetailPage() {
           <div className="course-instructor-card">
 
             <div className="course-instructor-icon">
+
               <UserRound size={28} />
+
             </div>
 
             <div>
@@ -451,6 +566,7 @@ export default function CourseDetailPage() {
       ===================================================== */}
 
       {gallery.length > 0 && (
+
         <section className="course-gallery-section">
 
           <div className="education-container">
@@ -468,7 +584,7 @@ export default function CourseDetailPage() {
               {gallery.map(
                 (
                   image,
-                  index
+                  index,
                 ) => (
 
                   <div
@@ -480,7 +596,7 @@ export default function CourseDetailPage() {
                     }}
                   />
 
-                )
+                ),
               )}
 
             </div>
@@ -488,6 +604,7 @@ export default function CourseDetailPage() {
           </div>
 
         </section>
+
       )}
 
 
@@ -525,11 +642,13 @@ export default function CourseDetailPage() {
             </strong>
 
             <Link
-              href={`/education/${course.slug}/enroll`}
+              href={`/education/${course.slug}/buy`}
               className="course-detail-button light"
             >
               Enrol Now
+
               <ArrowUpRight size={17} />
+
             </Link>
 
           </div>

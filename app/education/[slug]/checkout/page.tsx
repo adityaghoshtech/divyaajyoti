@@ -1,15 +1,27 @@
 "use client";
 
-import Link from "next/link";
-import { useParams } from "next/navigation";
-
 import {
-  useEffect,
   useMemo,
   useState,
   type ChangeEvent,
   type FormEvent,
+  type ReactNode,
 } from "react";
+
+import Link from "next/link";
+
+import {
+  useParams,
+} from "next/navigation";
+
+import {
+  useMutation,
+  useQuery,
+} from "convex/react";
+
+import {
+  api,
+} from "@/convex/_generated/api";
 
 import {
   ArrowLeft,
@@ -26,145 +38,102 @@ import {
   XCircle,
 } from "lucide-react";
 
-import {
-  useMutation,
-  useQuery,
-} from "convex/react";
-
-import { api } from "@/convex/_generated/api";
-
 
 export default function CourseCheckoutPage() {
-  const params = useParams();
+
+  const params =
+    useParams();
+
 
   const slug =
-    typeof params.slug === "string"
+    typeof params?.slug ===
+    "string"
       ? params.slug
       : "";
 
 
-  /* =========================================================
-     COURSE
-  ========================================================= */
-
-  const course = useQuery(
-    api.courses.bySlug,
-    slug
-      ? {
-          slug,
-        }
-      : "skip",
-  );
+  const course =
+    useQuery(
+      api.courses.bySlug,
+      slug
+        ? { slug }
+        : "skip",
+    );
 
 
-  /* =========================================================
-     FORM
-  ========================================================= */
-
-  const [name, setName] =
-    useState("");
-
-  const [email, setEmail] =
-    useState("");
-
-  const [phone, setPhone] =
-    useState("");
-
-  const [transactionId, setTransactionId] =
-    useState("");
-
-  const [paymentScreenshot, setPaymentScreenshot] =
-    useState<File | null>(null);
+  const [
+    name,
+    setName,
+  ] = useState("");
 
 
-  /* =========================================================
-     USER-SPECIFIC PHONE
-
-     This is extremely important.
-
-     The course is NOT the identity.
-
-     Identity =
-       phone + courseSlug
-  ========================================================= */
-
-  const [lookupPhone, setLookupPhone] =
-    useState("");
+  const [
+    email,
+    setEmail,
+  ] = useState("");
 
 
-  /* =========================================================
-     UI STATE
-  ========================================================= */
-
-  const [submitting, setSubmitting] =
-    useState(false);
-
-  const [error, setError] =
-    useState("");
+  const [
+    phone,
+    setPhone,
+  ] = useState("");
 
 
-  /* =========================================================
-     CONVEX MUTATIONS
-  ========================================================= */
+  const [
+    transactionId,
+    setTransactionId,
+  ] = useState("");
+
+
+  const [
+    paymentScreenshot,
+    setPaymentScreenshot,
+  ] =
+    useState<File | null>(
+      null,
+    );
+
+
+  const [
+    lookupPhone,
+    setLookupPhone,
+  ] = useState("");
+
+
+  const [
+    submitting,
+    setSubmitting,
+  ] = useState(false);
+
+
+  const [
+    error,
+    setError,
+  ] = useState("");
+
 
   const generateUploadUrl =
     useMutation(
-      api.coursePayments.generateUploadUrl,
+      api.coursePayments
+        .generateUploadUrl,
     );
+
 
   const submitPayment =
     useMutation(
-      api.coursePayments.submitPayment,
+      api.coursePayments
+        .submitPayment,
     );
 
 
-  /* =========================================================
-     LOAD SAVED USER PHONE
-  ========================================================= */
-
-  useEffect(() => {
-    if (
-      typeof window ===
-      "undefined"
-    ) {
-      return;
-    }
-
-    const savedPhone =
-      localStorage.getItem(
-        "divyajyoti_student_phone",
-      );
-
-    if (savedPhone) {
-      setPhone(savedPhone);
-
-      /*
-       * Only this phone is checked
-       * against this course.
-       */
-      setLookupPhone(savedPhone);
-    }
-  }, []);
-
-
-  /* =========================================================
-     GET USER-SPECIFIC ENROLLMENT
-
-     IMPORTANT:
-
-     We DO NOT query by course only.
-
-     We query:
-
-       phone
-       +
-       courseSlug
-  ========================================================= */
+  /* =====================================================
+     CHECK ONLY THE CURRENT PHONE + CURRENT COURSE
+  ===================================================== */
 
   const enrollment =
     useQuery(
-      api.coursePayments.getEnrollmentByPhone,
-
+      api.coursePayments
+        .getEnrollmentByPhone,
       lookupPhone && slug
         ? {
             phone:
@@ -177,231 +146,194 @@ export default function CourseCheckoutPage() {
     );
 
 
-  /* =========================================================
-     PRICE
-  ========================================================= */
-
   const price =
-    useMemo(() => {
-      if (!course) {
-        return 0;
-      }
+    useMemo(
+      () =>
+        course &&
+        typeof course.price ===
+          "number"
+          ? course.price
+          : 0,
+      [course],
+    );
 
-      return typeof course.price ===
-        "number"
-        ? course.price
-        : 0;
-    }, [course]);
-
-
-  /* =========================================================
-     IMAGE
-  ========================================================= */
-
-  const courseImage =
-    useMemo(() => {
-      if (!course) {
-        return "";
-      }
-
-      if (course.image) {
-        return course.image;
-      }
-
-      if (
-        Array.isArray(
-          course.images,
-        ) &&
-        course.images.length > 0
-      ) {
-        return course.images[0];
-      }
-
-      return "";
-    }, [course]);
-
-
-  /* =========================================================
-     LESSON COUNT
-  ========================================================= */
 
   const lessonCount =
-    useMemo(() => {
-      if (!course) {
-        return 0;
-      }
+    useMemo(
+      () => {
 
-      if (
-        Array.isArray(
+        if (!course) {
+          return 0;
+        }
+
+        return Array.isArray(
           course.lessons,
         )
-      ) {
-        return course.lessons.length;
-      }
+          ? course.lessons.length
+          : Number(
+              course.lessons || 0,
+            );
 
-      return Number(
-        course.lessons || 0,
-      );
-    }, [course]);
+      },
+      [course],
+    );
 
 
-  /* =========================================================
-     STATUS
-  ========================================================= */
+  const image =
+    course?.image ||
+    course?.images?.[0] ||
+    "";
+
 
   const status =
     String(
-      enrollment?.status ?? "",
+      enrollment?.status ??
+        "",
     ).toUpperCase();
 
 
-  /* =========================================================
-     FILE VALIDATION
-  ========================================================= */
+  /* =====================================================
+     FILE CHANGE
+  ===================================================== */
 
   const handleFileChange = (
     event: ChangeEvent<HTMLInputElement>,
   ) => {
-    setError("");
 
     const file =
       event.target.files?.[0];
 
+
+    setError("");
+
+
     if (!file) {
-      setPaymentScreenshot(null);
+
+      setPaymentScreenshot(
+        null,
+      );
+
       return;
+
     }
+
 
     if (
       file.size >
       5 * 1024 * 1024
     ) {
+
+      setPaymentScreenshot(
+        null,
+      );
+
+      event.target.value =
+        "";
+
       setError(
         "Payment screenshot must be smaller than 5 MB.",
       );
 
-      event.target.value = "";
-
-      setPaymentScreenshot(null);
-
       return;
+
     }
+
 
     if (
       !file.type.startsWith(
         "image/",
       )
     ) {
+
+      setPaymentScreenshot(
+        null,
+      );
+
+      event.target.value =
+        "";
+
       setError(
         "Please upload a valid image file.",
       );
 
-      event.target.value = "";
-
-      setPaymentScreenshot(null);
-
       return;
+
     }
+
 
     setPaymentScreenshot(
       file,
     );
+
   };
 
 
-  /* =========================================================
-     CHANGE USER
+  /* =====================================================
+     RESET CURRENT NUMBER
+  ===================================================== */
 
-     Useful if another person uses the same browser.
-
-     This does NOT delete their database enrollment.
-
-     It only changes the local browser identity.
-  ========================================================= */
-
-  const changeUser = () => {
-    localStorage.removeItem(
-      "divyajyoti_student_phone",
-    );
+  const resetNumber = () => {
 
     setLookupPhone("");
 
     setPhone("");
 
-    setName("");
-
-    setEmail("");
-
     setTransactionId("");
 
-    setPaymentScreenshot(null);
+    setPaymentScreenshot(
+      null,
+    );
 
     setError("");
+
   };
 
 
-  /* =========================================================
-     SUBMIT PAYMENT
-  ========================================================= */
+  /* =====================================================
+     SUBMIT
+  ===================================================== */
 
-  const handleSubmit = async (
+  const submit = async (
     event: FormEvent<HTMLFormElement>,
   ) => {
+
     event.preventDefault();
 
     setError("");
 
 
     if (!course) {
+
       setError(
         "Course information could not be loaded.",
       );
 
       return;
+
     }
 
 
     if (!name.trim()) {
+
       setError(
         "Please enter your full name.",
       );
 
       return;
+
     }
 
 
     if (!email.trim()) {
+
       setError(
         "Please enter your email address.",
       );
 
       return;
+
     }
 
-
-    if (!phone.trim()) {
-      setError(
-        "Please enter your phone number.",
-      );
-
-      return;
-    }
-
-
-    /*
-     * Normalize phone before saving.
-
-     * Example:
-
-       +91 98368 02673
-
-     becomes:
-
-       919836802673
-
-     This prevents different formatting
-     from creating duplicate users.
-    */
 
     const normalizedPhone =
       phone.replace(
@@ -414,32 +346,40 @@ export default function CourseCheckoutPage() {
       normalizedPhone.length <
       10
     ) {
+
       setError(
-        "Please enter a valid mobile number.",
+        "Please enter a valid 10-digit mobile number.",
       );
 
       return;
+
     }
 
 
     if (
-      transactionId.trim().length <
-      4
+      transactionId.trim()
+        .length < 4
     ) {
+
       setError(
         "Please enter a valid payment reference / UTR.",
       );
 
       return;
+
     }
 
 
-    if (!paymentScreenshot) {
+    if (
+      !paymentScreenshot
+    ) {
+
       setError(
         "Please upload your payment screenshot.",
       );
 
       return;
+
     }
 
 
@@ -448,41 +388,21 @@ export default function CourseCheckoutPage() {
 
     try {
 
-      /* =====================================================
-         SAVE USER PHONE
-
-         This is the identity used by My Courses.
-      ===================================================== */
-
-      localStorage.setItem(
-        "divyajyoti_student_phone",
-        normalizedPhone,
-      );
-
-
-      /* =====================================================
-         1. GET CONVEX UPLOAD URL
-      ===================================================== */
+      /* ===============================================
+         UPLOAD SCREENSHOT
+      =============================================== */
 
       const uploadUrl =
-        await generateUploadUrl({});
-
-
-      if (!uploadUrl) {
-        throw new Error(
-          "Could not create upload URL.",
+        await generateUploadUrl(
+          {},
         );
-      }
 
-
-      /* =====================================================
-         2. UPLOAD PAYMENT SCREENSHOT
-      ===================================================== */
 
       const response =
         await fetch(
           uploadUrl,
           {
+
             method:
               "POST",
 
@@ -493,14 +413,19 @@ export default function CourseCheckoutPage() {
 
             body:
               paymentScreenshot,
+
           },
         );
 
 
-      if (!response.ok) {
+      if (
+        !response.ok
+      ) {
+
         throw new Error(
           "Failed to upload payment screenshot.",
         );
+
       }
 
 
@@ -508,196 +433,189 @@ export default function CourseCheckoutPage() {
         await response.json();
 
 
-      const storageId =
-        uploadResult.storageId;
+      if (
+        !uploadResult.storageId
+      ) {
 
-
-      if (!storageId) {
         throw new Error(
           "Payment screenshot upload failed.",
         );
+
       }
 
 
-      /* =====================================================
-         3. CREATE / REUSE USER-SPECIFIC ENROLLMENT
-      ===================================================== */
+      /* ===============================================
+         CREATE ENROLLMENT
+      =============================================== */
 
-      await submitPayment({
-        courseSlug:
-          course.slug,
+      await submitPayment(
+        {
 
-        courseTitle:
-          course.title,
+          courseSlug:
+            course.slug,
 
-        name:
-          name.trim(),
+          courseTitle:
+            course.title,
 
-        email:
-          email
-            .trim()
-            .toLowerCase(),
+          name:
+            name.trim(),
 
-        phone:
-          normalizedPhone,
+          email:
+            email
+              .trim()
+              .toLowerCase(),
 
-        amount:
-          price,
+          phone:
+            normalizedPhone,
 
-        paymentReference:
-          transactionId.trim(),
+          amount:
+            price,
 
-        paymentProofStorageId:
-          storageId,
-      });
+          paymentReference:
+            transactionId.trim(),
+
+          paymentProofStorageId:
+            uploadResult.storageId,
+
+        },
+      );
 
 
-      /* =====================================================
-         4. IMPORTANT
+      /*
+       * Only now do we start checking
+       * this specific phone number.
+       */
 
-         DO NOT STORE:
-
-         divyajyoti_enrollment_${slug}
-
-         anymore.
-
-         The phone is the identity.
-      ===================================================== */
+      setPhone(
+        normalizedPhone,
+      );
 
       setLookupPhone(
         normalizedPhone,
       );
 
-      setPaymentScreenshot(null);
 
-      setTransactionId("");
+      setTransactionId(
+        "",
+      );
+
+      setPaymentScreenshot(
+        null,
+      );
+
 
     } catch (err) {
-      console.error(
-        "Payment submission error:",
-        err,
-      );
 
       setError(
         err instanceof Error
           ? err.message
           : "Payment submission failed.",
       );
+
     } finally {
+
       setSubmitting(false);
+
     }
+
   };
 
 
-  /* =========================================================
+  /* =====================================================
      COURSE LOADING
-  ========================================================= */
+  ===================================================== */
 
-  if (course === undefined) {
+  if (
+    course ===
+    undefined
+  ) {
+
     return (
-      <main className="checkout-page">
-
-        <section className="checkout-loading">
-
-          <div className="checkout-loading-card">
-
-            <div className="checkout-spinner" />
-
-            <p>
-              Loading checkout...
-            </p>
-
-          </div>
-
-        </section>
-
-      </main>
+      <CheckoutMessage
+        title="Loading checkout"
+        text="Preparing your course enrollment."
+        loading
+      />
     );
+
   }
 
 
-  /* =========================================================
+  /* =====================================================
      COURSE NOT FOUND
-  ========================================================= */
+  ===================================================== */
 
-  if (course === null) {
+  if (
+    course ===
+    null
+  ) {
+
     return (
-      <main className="checkout-page">
-
-        <section className="checkout-status-page">
-
-          <div className="checkout-success-card">
-
-            <XCircle
-              size={50}
-              className="checkout-error-icon"
-            />
-
-            <div className="checkout-status-label">
-              COURSE NOT FOUND
-            </div>
-
-            <h1>
-              This course is no longer available.
-            </h1>
-
-            <p>
-              The course could not be found.
-            </p>
-
-            <Link
-              href="/education"
-              className="checkout-success-button"
-            >
-              View Courses
-
-              <ArrowUpRight
-                size={17}
-              />
-            </Link>
-
-          </div>
-
-        </section>
-
-      </main>
+      <CheckoutMessage
+        title="Course not found"
+        text="The course may have been removed or the link may be incorrect."
+        action={
+          <Link href="/education">
+            View courses
+            <ArrowUpRight size={16} />
+          </Link>
+        }
+      />
     );
+
   }
 
 
-  /* =========================================================
-     APPROVED
+  /* =====================================================
+     CHECKING CURRENT PHONE
+  ===================================================== */
 
-     ONLY THE CURRENT PHONE NUMBER
-     + CURRENT COURSE
-     CAN REACH THIS SCREEN.
-  ========================================================= */
+  if (
+    lookupPhone &&
+    enrollment ===
+      undefined
+  ) {
+
+    return (
+      <CheckoutMessage
+        title="Checking your course access"
+        text="Checking this mobile number against this course."
+        loading
+      />
+    );
+
+  }
+
+
+  /* =====================================================
+     APPROVED
+  ===================================================== */
 
   if (
     enrollment &&
-    status === "APPROVED"
+    status ===
+      "APPROVED"
   ) {
+
     return (
-      <main className="checkout-page">
 
-        <section className="checkout-status-page">
+      <main className="checkout-page-v2">
 
-          <div className="checkout-success-card">
+        <section className="checkout-result">
 
-            <div className="checkout-success-icon">
-              <CheckCircle2
-                size={38}
-              />
+          <div className="checkout-result-card approved">
+
+            <div className="checkout-result-icon">
+              <CheckCircle2 size={38} />
             </div>
 
-            <div className="checkout-status-label">
+            <p className="eyebrow">
               PAYMENT SUCCESSFUL
-            </div>
+            </p>
 
             <h1>
-              Your payment has
-              <br />
-              been approved.
+              Your course access
+              is active.
             </h1>
 
             <p>
@@ -705,41 +623,36 @@ export default function CourseCheckoutPage() {
               <strong>
                 {course.title}
               </strong>{" "}
-              has been successfully verified.
+              has been approved by
+              the Divyajyoti team.
             </p>
 
+            <div className="checkout-approved-line">
 
-            <div className="checkout-approved-box">
+              <CheckCircle2 size={17} />
 
-              <CheckCircle2
-                size={18}
-              />
-
-              <span>
-                Course access activated
-              </span>
+              Course access activated
 
             </div>
 
 
             <Link
               href="/my-courses"
-              className="checkout-success-button"
+              className="checkout-primary-button"
             >
               Go to My Courses
-
-              <ArrowUpRight
-                size={17}
-              />
+              <ArrowUpRight size={17} />
             </Link>
 
 
             <button
               type="button"
-              className="checkout-secondary-button"
-              onClick={changeUser}
+              className="checkout-text-button"
+              onClick={
+                resetNumber
+              }
             >
-              Use a different mobile number
+              Use another mobile number
             </button>
 
           </div>
@@ -747,170 +660,61 @@ export default function CourseCheckoutPage() {
         </section>
 
       </main>
+
     );
+
   }
 
 
-  /* =========================================================
-     REJECTED
-  ========================================================= */
+  /* =====================================================
+     PENDING
+  ===================================================== */
 
   if (
     enrollment &&
-    status === "REJECTED"
+    status ===
+      "PENDING"
   ) {
+
     return (
-      <main className="checkout-page">
 
-        <section className="checkout-status-page">
+      <main className="checkout-page-v2">
 
-          <div className="checkout-success-card">
+        <section className="checkout-result">
 
-            <div className="checkout-rejected-icon">
+          <div className="checkout-result-card">
 
-              <XCircle
-                size={38}
-              />
+            <div className="checkout-result-icon pending">
+
+              <Clock3 size={38} />
 
             </div>
 
-            <div className="checkout-status-label">
-              PAYMENT REJECTED
-            </div>
-
-            <h1>
-              Your payment could not be approved.
-            </h1>
-
-            <p>
-              Please check your payment details
-              and submit them again.
+            <p className="eyebrow">
+              PAYMENT SUBMITTED
             </p>
 
-
-            {enrollment.adminNote && (
-              <div className="checkout-admin-note">
-
-                <strong>
-                  Admin note
-                </strong>
-
-                <p>
-                  {enrollment.adminNote}
-                </p>
-
-              </div>
-            )}
-
-
-            <button
-              type="button"
-              className="checkout-success-button"
-              onClick={() => {
-
-                /*
-                 * Stop checking the old rejected
-                 * enrollment.
-
-                 * The next submission can create
-                 * a new enrollment.
-                 */
-
-                setLookupPhone("");
-
-                setTransactionId("");
-
-                setPaymentScreenshot(null);
-
-                setError("");
-
-              }}
-            >
-              Submit Again
-
-              <ArrowUpRight
-                size={17}
-              />
-
-            </button>
-
-          </div>
-
-        </section>
-
-      </main>
-    );
-  }
-
-
-  /* =========================================================
-     PENDING
-  ========================================================= */
-
-  if (
-    enrollment &&
-    status === "PENDING"
-  ) {
-    return (
-      <main className="checkout-page">
-
-        <section className="checkout-status-page">
-
-          <div className="checkout-success-card">
-
-            <div className="checkout-pending-icon">
-
-              <Clock3
-                size={38}
-              />
-
-            </div>
-
-            <div className="checkout-status-label">
-              PAYMENT SUBMITTED
-            </div>
-
             <h1>
-              Your payment is under review.
+              Your payment is
+              under review.
             </h1>
 
             <p>
-              We have received your payment
+              We received the payment
               details for{" "}
               <strong>
                 {course.title}
               </strong>.
+              This page will update
+              automatically after
+              admin approval.
             </p>
 
-            <p>
-              Our team will verify your payment
-              and approve your course access.
-            </p>
+            <div className="checkout-approved-line pending-line">
 
+              <ShieldCheck size={17} />
 
-            <div className="checkout-status-line">
-
-              <Clock3
-                size={18}
-              />
-
-              <strong>
-                Status: Pending approval
-              </strong>
-
-            </div>
-
-
-            <div className="checkout-review-note">
-
-              <ShieldCheck
-                size={18}
-              />
-
-              <span>
-                This page updates automatically
-                when your payment is approved.
-              </span>
+              Status: Pending approval
 
             </div>
 
@@ -919,16 +723,18 @@ export default function CourseCheckoutPage() {
               href={`/education/${course.slug}`}
               className="checkout-secondary-button"
             >
-              Back to Course
+              Back to course
             </Link>
 
 
             <button
               type="button"
-              className="checkout-secondary-button"
-              onClick={changeUser}
+              className="checkout-text-button"
+              onClick={
+                resetNumber
+              }
             >
-              Use a different mobile number
+              Use another mobile number
             </button>
 
           </div>
@@ -936,585 +742,534 @@ export default function CourseCheckoutPage() {
         </section>
 
       </main>
+
     );
+
   }
 
 
-  /* =========================================================
-     CHECKING USER-SPECIFIC ENROLLMENT
-  ========================================================= */
-
-  if (
-    lookupPhone &&
-    enrollment === undefined
-  ) {
-    return (
-      <main className="checkout-page">
-
-        <section className="checkout-status-page">
-
-          <div className="checkout-success-card">
-
-            <div className="checkout-loading-small">
-
-              <div className="checkout-spinner" />
-
-            </div>
-
-            <div className="checkout-status-label">
-              CHECKING PAYMENT
-            </div>
-
-            <h1>
-              Checking your payment status.
-            </h1>
-
-            <p>
-              Please wait...
-            </p>
-
-          </div>
-
-        </section>
-
-      </main>
-    );
-  }
-
-
-  /* =========================================================
-     PAYMENT FORM
-  ========================================================= */
+  /* =====================================================
+     CHECKOUT FORM
+  ===================================================== */
 
   return (
-    <main className="checkout-page">
 
-      <section className="checkout-top">
+    <main className="checkout-page-v2">
+
+      {/* HERO */}
+
+      <section className="checkout-hero-v2">
 
         <div className="education-container">
 
           <Link
             href={`/education/${course.slug}/buy`}
-            className="checkout-back"
+            className="course-back"
           >
-            <ArrowLeft
-              size={16}
-            />
-
+            <ArrowLeft size={16} />
             Back to course
           </Link>
 
+          <p className="learning-kicker">
+            DIVYAJYOTI • COURSE ENROLLMENT
+          </p>
 
-          <div className="checkout-heading">
+          <h1>
+            Complete your enrollment.
+          </h1>
 
-            <div>
-
-              <div className="eyebrow">
-                SECURE COURSE CHECKOUT
-              </div>
-
-              <h1>
-                Complete your enrollment.
-              </h1>
-
-              <p>
-                Complete your payment and
-                submit your transaction details
-                for verification.
-              </p>
-
-            </div>
-
-          </div>
+          <p>
+            Pay the course fee, then
+            submit your UTR and payment
+            screenshot for verification.
+          </p>
 
         </div>
 
       </section>
 
 
-      <section className="checkout-main">
+      {/* MAIN */}
 
-        <div className="education-container">
+      <section className="checkout-main-v2">
 
-          <div className="checkout-grid">
+        <div className="education-container checkout-v2-grid">
 
+          {/* =================================================
+              FORM
+          ================================================= */}
 
-            {/* =================================================
-                FORM
-            ================================================= */}
+          <div className="checkout-v2-form-card">
 
-            <div className="checkout-form-card">
+            <div className="checkout-v2-card-head">
 
-              <div className="checkout-form-icon">
-
-                <CreditCard
-                  size={22}
-                />
-
+              <div className="checkout-v2-icon">
+                <CreditCard size={21} />
               </div>
 
-              <div className="checkout-form-label">
-                PAYMENT DETAILS
+              <div>
+
+                <p className="eyebrow">
+                  PAYMENT DETAILS
+                </p>
+
+                <h2>
+                  Submit your payment
+                </h2>
+
               </div>
-
-              <h2>
-                Submit your payment
-              </h2>
-
-              <p className="checkout-form-description">
-                Make your payment and enter
-                your transaction information below.
-              </p>
-
-
-              {error && (
-                <div className="checkout-error">
-
-                  <XCircle
-                    size={18}
-                  />
-
-                  <span>
-                    {error}
-                  </span>
-
-                </div>
-              )}
-
-
-              <form
-                onSubmit={
-                  handleSubmit
-                }
-                className="checkout-form"
-              >
-
-
-                {/* NAME */}
-
-                <div className="checkout-field">
-
-                  <label htmlFor="name">
-                    Full Name
-                  </label>
-
-                  <div className="checkout-input-wrap">
-
-                    <UserRound
-                      size={17}
-                    />
-
-                    <input
-                      id="name"
-                      type="text"
-                      value={name}
-                      onChange={(e) =>
-                        setName(
-                          e.target.value,
-                        )
-                      }
-                      placeholder="Enter your full name"
-                      disabled={submitting}
-                    />
-
-                  </div>
-
-                </div>
-
-
-                {/* EMAIL */}
-
-                <div className="checkout-field">
-
-                  <label htmlFor="email">
-                    Email Address
-                  </label>
-
-                  <input
-                    id="email"
-                    type="email"
-                    value={email}
-                    onChange={(e) =>
-                      setEmail(
-                        e.target.value,
-                      )
-                    }
-                    placeholder="you@example.com"
-                    disabled={submitting}
-                  />
-
-                </div>
-
-
-                {/* PHONE */}
-
-                <div className="checkout-field">
-
-                  <label htmlFor="phone">
-                    Phone Number
-                  </label>
-
-                  <input
-                    id="phone"
-                    type="tel"
-                    value={phone}
-                    onChange={(e) =>
-                      setPhone(
-                        e.target.value,
-                      )
-                    }
-                    placeholder="+91 98765 43210"
-                    disabled={submitting}
-                  />
-
-                  <small>
-                    This mobile number identifies
-                    your course access.
-                  </small>
-
-                </div>
-
-
-                {/* UTR */}
-
-                <div className="checkout-field">
-
-                  <label htmlFor="transactionId">
-                    UTR / Transaction Reference
-                  </label>
-
-                  <input
-                    id="transactionId"
-                    type="text"
-                    value={transactionId}
-                    onChange={(e) =>
-                      setTransactionId(
-                        e.target.value,
-                      )
-                    }
-                    placeholder="Enter UTR / transaction ID"
-                    disabled={submitting}
-                  />
-
-                  <small>
-                    Enter the transaction
-                    reference shown by your
-                    UPI or banking app.
-                  </small>
-
-                </div>
-
-
-                {/* SCREENSHOT */}
-
-                <div className="checkout-field">
-
-                  <label htmlFor="paymentScreenshot">
-                    Payment Screenshot
-                  </label>
-
-                  <label
-                    htmlFor="paymentScreenshot"
-                    className="checkout-upload"
-                  >
-
-                    <Upload
-                      size={25}
-                    />
-
-                    <strong>
-                      {paymentScreenshot
-                        ? paymentScreenshot.name
-                        : "Upload payment screenshot"}
-                    </strong>
-
-                    <span>
-                      PNG, JPG or WEBP up to 5 MB
-                    </span>
-
-                  </label>
-
-                  <input
-                    id="paymentScreenshot"
-                    type="file"
-                    accept="image/png,image/jpeg,image/webp"
-                    onChange={
-                      handleFileChange
-                    }
-                    disabled={
-                      submitting
-                    }
-                    className="checkout-file-input"
-                  />
-
-                </div>
-
-
-                {/* SUBMIT */}
-
-                <button
-                  type="submit"
-                  className="checkout-button"
-                  disabled={submitting}
-                >
-
-                  {submitting ? (
-                    <>
-                      <span className="checkout-button-spinner" />
-
-                      Submitting...
-                    </>
-                  ) : (
-                    <>
-                      Submit Payment
-
-                      <ArrowUpRight
-                        size={17}
-                      />
-                    </>
-                  )}
-
-                </button>
-
-
-                <div className="checkout-security">
-
-                  <ShieldCheck
-                    size={17}
-                  />
-
-                  <span>
-                    Your payment information is
-                    securely stored and reviewed
-                    by the Divyajyoti team.
-                  </span>
-
-                </div>
-
-              </form>
 
             </div>
 
 
-            {/* =================================================
-                SUMMARY
-            ================================================= */}
+            <div className="checkout-number-note">
 
-            <aside className="checkout-summary">
+              <strong>
+                Important
+              </strong>
 
-              <div className="checkout-summary-label">
-                YOUR COURSE
+              <span>
+                Use your own mobile number.
+                Course access is linked to
+                this number plus this course.
+              </span>
+
+            </div>
+
+
+            {error && (
+
+              <div className="checkout-v2-error">
+
+                <XCircle size={17} />
+
+                {error}
+
               </div>
 
-              <h2>
-                {course.title}
-              </h2>
-
-              <p className="checkout-summary-category">
-                {course.category ||
-                  "Divyajyoti Education"}
-              </p>
+            )}
 
 
-              {courseImage && (
-                <div
-                  className="checkout-course-image"
-                  style={{
-                    backgroundImage:
-                      `url(${courseImage})`,
-                  }}
+            <form
+              onSubmit={
+                submit
+              }
+              className="checkout-v2-form"
+            >
+
+              {/* NAME */}
+
+              <label>
+
+                Full name
+
+                <span className="checkout-v2-input">
+
+                  <UserRound size={17} />
+
+                  <input
+                    value={
+                      name
+                    }
+                    onChange={(
+                      event,
+                    ) =>
+                      setName(
+                        event.target.value,
+                      )
+                    }
+                    placeholder="Enter your full name"
+                    disabled={
+                      submitting
+                    }
+                  />
+
+                </span>
+
+              </label>
+
+
+              {/* EMAIL */}
+
+              <label>
+
+                Email address
+
+                <input
+                  type="email"
+                  value={
+                    email
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setEmail(
+                      event.target.value,
+                    )
+                  }
+                  placeholder="you@example.com"
+                  disabled={
+                    submitting
+                  }
                 />
-              )}
+
+              </label>
 
 
-              <div className="checkout-course-info">
+              {/* PHONE */}
 
-                <div>
+              <label>
 
-                  <Clock3
-                    size={16}
-                  />
+                Mobile number
 
-                  <span>
-                    {course.duration ||
-                      "Flexible learning"}
-                  </span>
+                <input
+                  type="tel"
+                  inputMode="numeric"
+                  value={
+                    phone
+                  }
+                  onChange={(
+                    event,
+                  ) => {
 
-                </div>
+                    setPhone(
+                      event.target.value,
+                    );
 
+                    setLookupPhone(
+                      "",
+                    );
 
-                <div>
+                  }}
+                  placeholder="Enter your 10-digit number"
+                  disabled={
+                    submitting
+                  }
+                />
 
-                  <BookOpen
-                    size={16}
-                  />
+                <small>
+                  This is the number
+                  you will use to access
+                  My Courses.
+                </small>
 
-                  <span>
-                    {lessonCount} lessons
-                  </span>
-
-                </div>
-
-
-                <div>
-
-                  <GraduationCap
-                    size={16}
-                  />
-
-                  <span>
-                    {course.level ||
-                      "Professional"}
-                  </span>
-
-                </div>
-
-              </div>
+              </label>
 
 
-              <div className="checkout-divider" />
+              {/* UTR */}
+
+              <label>
+
+                UTR / transaction reference
+
+                <input
+                  value={
+                    transactionId
+                  }
+                  onChange={(
+                    event,
+                  ) =>
+                    setTransactionId(
+                      event.target.value,
+                    )
+                  }
+                  placeholder="Enter UTR / transaction ID"
+                  disabled={
+                    submitting
+                  }
+                />
+
+              </label>
 
 
-              <div className="checkout-price-row">
+              {/* SCREENSHOT */}
 
-                <span>
-                  Course fee
-                </span>
+              <div className="checkout-v2-form-field">
 
-                <strong>
-                  ₹
-                  {price.toLocaleString(
-                    "en-IN",
-                  )}
-                </strong>
+                <label htmlFor="payment-proof">
+                  Payment screenshot
+                </label>
 
-              </div>
+                <label
+                  htmlFor="payment-proof"
+                  className="checkout-upload-v2"
+                >
 
-
-              <div className="checkout-price-row total">
-
-                <span>
-                  Total
-                </span>
-
-                <strong>
-
-                  <IndianRupee
-                    size={17}
-                  />
-
-                  {price.toLocaleString(
-                    "en-IN",
-                  )}
-
-                </strong>
-
-              </div>
-
-
-              <div className="checkout-payment-box">
-
-                <div className="checkout-payment-box-header">
-
-                  <CreditCard
-                    size={18}
-                  />
+                  <Upload size={24} />
 
                   <strong>
-                    Payment Instructions
+                    {paymentScreenshot
+                      ? paymentScreenshot.name
+                      : "Upload payment screenshot"}
                   </strong>
 
-                </div>
+                  <span>
+                    PNG, JPG or WEBP
+                    • maximum 5 MB
+                  </span>
 
-                <p>
-                  Complete the payment using
-                  the approved Divyajyoti payment
-                  method, then submit the UTR
-                  and screenshot.
-                </p>
+                </label>
 
-
-                <div className="checkout-payment-steps">
-
-                  <div>
-
-                    <span>
-                      1
-                    </span>
-
-                    <p>
-                      Complete the payment.
-                    </p>
-
-                  </div>
-
-
-                  <div>
-
-                    <span>
-                      2
-                    </span>
-
-                    <p>
-                      Copy your UTR / transaction
-                      reference.
-                    </p>
-
-                  </div>
-
-
-                  <div>
-
-                    <span>
-                      3
-                    </span>
-
-                    <p>
-                      Upload your payment
-                      screenshot.
-                    </p>
-
-                  </div>
-
-
-                  <div>
-
-                    <span>
-                      4
-                    </span>
-
-                    <p>
-                      Submit the form for review.
-                    </p>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-
-              <div className="checkout-summary-note">
-
-                <ShieldCheck
-                  size={17}
+                <input
+                  id="payment-proof"
+                  type="file"
+                  accept="image/png,image/jpeg,image/webp"
+                  onChange={
+                    handleFileChange
+                  }
+                  disabled={
+                    submitting
+                  }
+                  hidden
                 />
 
-                <span>
-                  Course access is activated
-                  only after payment verification.
-                </span>
+              </div>
+
+
+              {/* SUBMIT */}
+
+              <button
+                className="checkout-submit-v2"
+                type="submit"
+                disabled={
+                  submitting
+                }
+              >
+
+                {submitting
+                  ? "Submitting payment..."
+                  : (
+                    <>
+                      Submit payment
+                      <ArrowUpRight size={17} />
+                    </>
+                  )}
+
+              </button>
+
+
+              <div className="checkout-security-v2">
+
+                <ShieldCheck size={17} />
+
+                Your payment details are
+                stored for review by the
+                Divyajyoti team.
 
               </div>
 
-            </aside>
+            </form>
 
           </div>
+
+
+          {/* =================================================
+              SUMMARY
+          ================================================= */}
+
+          <aside className="checkout-v2-summary">
+
+            <p className="eyebrow">
+              YOUR COURSE
+            </p>
+
+            <h2>
+              {course.title}
+            </h2>
+
+            <p>
+              {course.category ||
+                "Divyajyoti Learning"}
+            </p>
+
+
+            {image && (
+
+              <div
+                className="checkout-v2-image"
+                style={{
+                  backgroundImage:
+                    `url(${image})`,
+                }}
+              />
+
+            )}
+
+
+            <div className="checkout-v2-facts">
+
+              <span>
+                <BookOpen size={16} />
+                {lessonCount} lessons
+              </span>
+
+              <span>
+                <Clock3 size={16} />
+                {course.duration ||
+                  "Flexible"}
+              </span>
+
+              <span>
+                <GraduationCap size={16} />
+                {course.level ||
+                  "Professional"}
+              </span>
+
+            </div>
+
+
+            <div className="checkout-v2-total">
+
+              <span>
+                Course fee
+              </span>
+
+              <strong>
+
+                <IndianRupee size={18} />
+
+                {price.toLocaleString(
+                  "en-IN",
+                )}
+
+              </strong>
+
+            </div>
+
+
+            <div className="checkout-v2-steps">
+
+              <strong>
+                Payment process
+              </strong>
+
+              <div>
+                <b>01</b>
+                <span>
+                  Complete the payment
+                  using the Divyajyoti
+                  payment method.
+                </span>
+              </div>
+
+              <div>
+                <b>02</b>
+                <span>
+                  Copy the UTR or
+                  transaction reference.
+                </span>
+              </div>
+
+              <div>
+                <b>03</b>
+                <span>
+                  Upload your payment
+                  screenshot.
+                </span>
+              </div>
+
+              <div>
+                <b>04</b>
+                <span>
+                  Submit for admin
+                  verification.
+                </span>
+              </div>
+
+            </div>
+
+
+            <div className="checkout-v2-note">
+
+              <ShieldCheck size={17} />
+
+              Access is activated only
+              after payment approval.
+
+            </div>
+
+          </aside>
 
         </div>
 
       </section>
 
     </main>
+
+  );
+}
+
+
+/* =========================================================
+   CHECKOUT MESSAGE
+========================================================= */
+
+function CheckoutMessage({
+  title,
+  text,
+  loading = false,
+  action,
+}: {
+  title: string;
+  text: string;
+  loading?: boolean;
+  action?: ReactNode;
+}) {
+
+  return (
+
+    <main className="checkout-page-v2">
+
+      <section className="checkout-result">
+
+        <div className="checkout-result-card">
+
+          {loading ? (
+
+            <Clock3
+              className="checkout-message-spin"
+              size={28}
+            />
+
+          ) : (
+
+            <XCircle
+              size={30}
+            />
+
+          )}
+
+
+          <p className="eyebrow">
+            DIVYAJYOTI • LEARNING
+          </p>
+
+          <h1>
+            {title}
+          </h1>
+
+          <p>
+            {text}
+          </p>
+
+
+          {action ?? (
+
+            <Link
+              href="/education"
+              className="checkout-primary-button"
+            >
+              Back to Learning
+              <ArrowUpRight size={16} />
+            </Link>
+
+          )}
+
+        </div>
+
+      </section>
+
+    </main>
+
   );
 }

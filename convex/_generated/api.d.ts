@@ -11,6 +11,7 @@
 import type * as admin from "../admin.js";
 import type * as adminCourses from "../adminCourses.js";
 import type * as consultations from "../consultations.js";
+import type * as courseMaterials from "../courseMaterials.js";
 import type * as coursePayments from "../coursePayments.js";
 import type * as courses from "../courses.js";
 import type * as leads from "../leads.js";
@@ -30,6 +31,7 @@ declare const fullApi: ApiFromModules<{
   admin: typeof admin;
   adminCourses: typeof adminCourses;
   consultations: typeof consultations;
+  courseMaterials: typeof courseMaterials;
   coursePayments: typeof coursePayments;
   courses: typeof courses;
   leads: typeof leads;

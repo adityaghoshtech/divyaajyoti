@@ -1,208 +1,445 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { normalizePhone } from "./utils";
+import type { Id } from "./_generated/dataModel";
+
+import {
+  normalizePhone,
+} from "./utils";
+
 
 /* =========================================================
-   GET ALL APPROVED COURSES FOR A PHONE NUMBER
+   GET ALL APPROVED COURSES FOR ONE PHONE NUMBER
 ========================================================= */
 
 export const getMyCourses = query({
+
   args: {
     phone: v.string(),
   },
 
-  handler: async (ctx, args) => {
-    const phone = normalizePhone(args.phone);
+  handler: async (
+    ctx,
+    args,
+  ) => {
+
+    const phone =
+      normalizePhone(
+        args.phone,
+      );
 
     if (!phone) {
       return [];
     }
 
-    const enrollments = await ctx.db
-      .query("courseEnrollments")
-      .withIndex("by_phone", (q) =>
-        q.eq("phone", phone),
-      )
-      .collect();
 
-    const approvedEnrollments = enrollments.filter(
-      (enrollment) =>
-        String(enrollment.status ?? "").toUpperCase() ===
-        "APPROVED",
-    );
-
-    return approvedEnrollments.map((enrollment) => ({
-      enrollmentId: enrollment._id,
-
-      courseSlug: enrollment.courseSlug,
-
-      courseTitle: enrollment.courseTitle,
-
-      name: enrollment.name,
-
-      email: enrollment.email,
-
-      phone: enrollment.phone,
-
-      amount: enrollment.amount,
-
-      approvedAt: enrollment.approvedAt,
-
-      paidAt: enrollment.paidAt,
-    }));
-  },
-});
+    const enrollments =
+      await ctx.db
+        .query(
+          "courseEnrollments",
+        )
+        .withIndex(
+          "by_phone",
+          (q) =>
+            q.eq(
+              "phone",
+              phone,
+            ),
+        )
+        .collect();
 
 
-/* =========================================================
-   CHECK COURSE ACCESS
-========================================================= */
-
-export const checkCourseAccess = query({
-  args: {
-    phone: v.string(),
-    courseSlug: v.string(),
-  },
-
-  handler: async (ctx, args) => {
-    const phone = normalizePhone(args.phone);
-
-    if (!phone) {
-      return null;
-    }
-
-    const enrollments = await ctx.db
-      .query("courseEnrollments")
-      .withIndex("by_phone", (q) =>
-        q.eq("phone", phone),
-      )
-      .collect();
-
-    const enrollment = enrollments.find(
-      (item) =>
-        item.courseSlug === args.courseSlug,
-    );
-
-    if (!enrollment) {
-      return null;
-    }
-
-    const status = String(
-      enrollment.status ?? "",
-    ).toUpperCase();
-
-    return {
-      hasEnrollment: true,
-
-      approved: status === "APPROVED",
-
-      status,
-
-      enrollmentId: enrollment._id,
-
-      courseSlug: enrollment.courseSlug,
-
-      courseTitle: enrollment.courseTitle,
-
-      name: enrollment.name,
-
-      phone: enrollment.phone,
-    };
-  },
-});
+    const approved =
+      enrollments
+        .filter(
+          (item) =>
+            String(
+              item.status ?? "",
+            ).toUpperCase() ===
+            "APPROVED",
+        )
+        .sort(
+          (a, b) =>
+            b.createdAt -
+            a.createdAt,
+        );
 
 
-/* =========================================================
-   GET PRIVATE COURSE MATERIALS
+    const result =
+      await Promise.all(
 
-   Only APPROVED students can access materials.
-========================================================= */
+        approved.map(
+          async (
+            enrollment,
+          ) => {
 
-export const getCourseMaterials = query({
-  args: {
-    phone: v.string(),
-    courseSlug: v.string(),
-  },
+            const course =
+              await ctx.db
+                .query(
+                  "courses",
+                )
+                .withIndex(
+                  "by_slug",
+                  (q) =>
+                    q.eq(
+                      "slug",
+                      enrollment.courseSlug,
+                    ),
+                )
+                .unique();
 
-  handler: async (ctx, args) => {
-    const phone = normalizePhone(args.phone);
 
-    if (!phone) {
-      return {
-        authorized: false,
-        materials: [],
-      };
-    }
+            const lessonCount =
+              course
+                ? Array.isArray(
+                    course.lessons,
+                  )
+                  ? course.lessons.length
+                  : Number(
+                      course.lessons || 0,
+                    )
+                : 0;
 
-    const enrollments = await ctx.db
-      .query("courseEnrollments")
-      .withIndex("by_phone", (q) =>
-        q.eq("phone", phone),
-      )
-      .collect();
 
-    const enrollment = enrollments.find(
-      (item) =>
-        item.courseSlug === args.courseSlug,
-    );
+            return {
 
-    if (!enrollment) {
-      return {
-        authorized: false,
-        materials: [],
-      };
-    }
+              enrollmentId:
+                enrollment._id,
 
-    const status = String(
-      enrollment.status ?? "",
-    ).toUpperCase();
+              courseSlug:
+                enrollment.courseSlug,
 
-    if (status !== "APPROVED") {
-      return {
-        authorized: false,
-        materials: [],
-      };
-    }
+              courseTitle:
+                enrollment.courseTitle,
 
-    const materials = await ctx.db
-      .query("courseMaterials")
-      .withIndex("by_course", (q) =>
-        q.eq(
-          "courseSlug",
-          args.courseSlug,
+              name:
+                enrollment.name,
+
+              email:
+                enrollment.email,
+
+              approvedAt:
+                enrollment.approvedAt ??
+                enrollment.createdAt,
+
+              course:
+                course
+                  ? {
+
+                      title:
+                        course.title,
+
+                      slug:
+                        course.slug,
+
+                      category:
+                        course.category ??
+                        "Learning",
+
+                      duration:
+                        course.duration,
+
+                      level:
+                        course.level,
+
+                      description:
+                        course.description,
+
+                      instructor:
+                        course.instructor,
+
+                      price:
+                        course.price ??
+                        0,
+
+                      image:
+                        course.image ??
+                        course.images?.[0] ??
+                        "",
+
+                      lessonCount,
+
+                    }
+                  : null,
+
+            };
+
+          },
         ),
-      )
-      .collect();
 
-    const publishedMaterials = materials
-      .filter(
-        (material) =>
-          String(material.status ?? "").toUpperCase() ===
-          "PUBLISHED",
-      )
-      .sort(
-        (a, b) =>
-          a.sortOrder - b.sortOrder,
       );
 
-    return {
-      authorized: true,
 
-      enrollment: {
-        enrollmentId: enrollment._id,
+    return result;
 
-        name: enrollment.name,
-
-        phone: enrollment.phone,
-
-        courseTitle:
-          enrollment.courseTitle,
-
-        courseSlug:
-          enrollment.courseSlug,
-      },
-
-      materials: publishedMaterials,
-    };
   },
+
 });
+
+
+/* =========================================================
+   GET ONE APPROVED COURSE + ITS MATERIALS
+========================================================= */
+
+export const getCourseAccess =
+  query({
+
+    args: {
+
+      phone:
+        v.string(),
+
+      courseSlug:
+        v.string(),
+
+    },
+
+    handler: async (
+      ctx,
+      args,
+    ) => {
+
+      const phone =
+        normalizePhone(
+          args.phone,
+        );
+
+      if (!phone) {
+        return null;
+      }
+
+
+      const enrollments =
+        await ctx.db
+          .query(
+            "courseEnrollments",
+          )
+          .withIndex(
+            "by_phone",
+            (q) =>
+              q.eq(
+                "phone",
+                phone,
+              ),
+          )
+          .collect();
+
+
+      /*
+       * IMPORTANT:
+       *
+       * Access is based on:
+       *
+       * PHONE + COURSE SLUG
+       *
+       * Not course alone.
+       */
+
+      const enrollment =
+        enrollments
+          .filter(
+            (item) =>
+              item.courseSlug ===
+                args.courseSlug &&
+              String(
+                item.status ?? "",
+              ).toUpperCase() ===
+                "APPROVED",
+          )
+          .sort(
+            (a, b) =>
+              b.createdAt -
+              a.createdAt,
+          )[0];
+
+
+      if (!enrollment) {
+        return null;
+      }
+
+
+      const course =
+        await ctx.db
+          .query(
+            "courses",
+          )
+          .withIndex(
+            "by_slug",
+            (q) =>
+              q.eq(
+                "slug",
+                args.courseSlug,
+              ),
+          )
+          .unique();
+
+
+      if (!course) {
+        return null;
+      }
+
+
+      const materials =
+        await ctx.db
+          .query(
+            "courseMaterials",
+          )
+          .withIndex(
+            "by_course",
+            (q) =>
+              q.eq(
+                "courseSlug",
+                args.courseSlug,
+              ),
+          )
+          .collect();
+
+
+      const publishedMaterials =
+        await Promise.all(
+
+          materials
+            .filter(
+              (item) =>
+                String(
+                  item.status,
+                ).toLowerCase() ===
+                "published",
+            )
+            .sort(
+              (a, b) =>
+                a.sortOrder -
+                b.sortOrder,
+            )
+            .map(
+              async (
+                item,
+              ) => {
+
+                let storageUrl:
+                  string | null =
+                  null;
+
+
+                if (
+                  item.storageId
+                ) {
+
+                  try {
+
+                    storageUrl =
+                      await ctx.storage.getUrl(
+                        item.storageId as Id<"_storage">,
+                      );
+
+                  } catch {
+
+                    storageUrl =
+                      null;
+
+                  }
+
+                }
+
+
+                return {
+
+                  id:
+                    item._id,
+
+                  title:
+                    item.title,
+
+                  type:
+                    item.type,
+
+                  description:
+                    item.description ??
+                    "",
+
+                  url:
+                    item.url ??
+                    storageUrl ??
+                    "",
+
+                  sortOrder:
+                    item.sortOrder,
+
+                };
+
+              },
+            ),
+
+        );
+
+
+      const lessonCount =
+        Array.isArray(
+          course.lessons,
+        )
+          ? course.lessons.length
+          : Number(
+              course.lessons || 0,
+            );
+
+
+      return {
+
+        enrollment: {
+
+          id:
+            enrollment._id,
+
+          name:
+            enrollment.name,
+
+          approvedAt:
+            enrollment.approvedAt ??
+            enrollment.createdAt,
+
+        },
+
+        course: {
+
+          title:
+            course.title,
+
+          slug:
+            course.slug,
+
+          category:
+            course.category ??
+            "Learning",
+
+          duration:
+            course.duration,
+
+          level:
+            course.level,
+
+          description:
+            course.description,
+
+          instructor:
+            course.instructor,
+
+          image:
+            course.image ??
+            course.images?.[0] ??
+            "",
+
+          lessonCount,
+
+          syllabus:
+            course.syllabus ??
+            [],
+
+        },
+
+        materials:
+          publishedMaterials,
+
+      };
+
+    },
+
+  });

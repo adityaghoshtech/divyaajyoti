@@ -30,6 +30,7 @@ import {
   Sparkles,
   Trash2,
   Users,
+  Video,
   WalletCards,
   X,
 } from "lucide-react";
@@ -41,6 +42,7 @@ import {
 type TableName =
   | "properties"
   | "courses"
+  | "courseMaterials"
   | "events"
   | "leads"
   | "consultations"
@@ -85,6 +87,12 @@ const nav: {
     id: "courses",
     label: "Courses",
     icon: GraduationCap,
+    group: "Content",
+  },
+  {
+    id: "courseMaterials",
+    label: "Course Materials",
+    icon: Video,
     group: "Content",
   },
   {
@@ -176,7 +184,10 @@ export default function AdminPage() {
     tab === "overview"
       ? "skip"
       : {
-          table: tab,
+          table: tab as Exclude<
+            TableName,
+            "courseMaterials"
+          >,
         },
   );
 
@@ -343,9 +354,9 @@ export default function AdminPage() {
                 </h2>
 
                 <p>
-                  Manage your Divyajyoti
-                  website data directly
-                  from this panel.
+                  {tab === "courseMaterials"
+                    ? "Upload and publish recorded classes, PDFs, notes, Google Meet links and other private course resources."
+                    : "Manage your Divyajyoti website data directly from this panel."}
                 </p>
 
               </div>
@@ -451,7 +462,10 @@ export default function AdminPage() {
                 }
 
                 await remove({
-                  table: tab,
+                  table: tab as Exclude<
+                    TableName,
+                    "courseMaterials"
+                  >,
                   id,
                 });
 
@@ -1214,8 +1228,9 @@ function DataTable({
         </h2>
 
         <p>
-          Use the Add button to create
-          the first record.
+          {table === "courseMaterials"
+            ? "Use Add Course Materials to publish a video, PDF, note, Google Meet link or resource for a course."
+            : "Use the Add button to create the first record."}
         </p>
 
       </div>
@@ -1364,6 +1379,15 @@ function tableFields(
         ["price", "Price"],
         ["status", "Status"],
         ["instructor", "Instructor"],
+      ]);
+
+    case "courseMaterials":
+      return common([
+        ["title", "Title"],
+        ["courseSlug", "Course"],
+        ["type", "Type"],
+        ["sortOrder", "Order"],
+        ["status", "Status"],
       ]);
 
     case "events":
@@ -1626,6 +1650,66 @@ function RecordEditor({
           form,
         );
 
+      /*
+       * COURSE MATERIAL FILE
+       *
+       * A course material has one primary
+       * uploaded file. We store its Convex
+       * Storage ID directly on the record.
+       */
+      if (
+        table ===
+        "courseMaterials"
+      ) {
+
+        const materialFile =
+          form.materialFile as
+            | File
+            | undefined;
+
+        if (materialFile) {
+
+          const uploadUrl =
+            await generateUploadUrl(
+              {},
+            );
+
+          const response =
+            await fetch(
+              uploadUrl,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type":
+                    materialFile.type ||
+                    "application/octet-stream",
+                },
+                body: materialFile,
+              },
+            );
+
+          if (!response.ok) {
+            throw new Error(
+              `Material upload failed: ${materialFile.name}`,
+            );
+          }
+
+          const result =
+            await response.json();
+
+          if (!result.storageId) {
+            throw new Error(
+              "Convex did not return a storage ID for the uploaded material.",
+            );
+          }
+
+          data.storageId =
+            result.storageId;
+        }
+
+        delete data.materialFile;
+      }
+
       delete data.photoFiles;
 
       let recordId:
@@ -1636,7 +1720,10 @@ function RecordEditor({
       if (existing) {
 
         await update({
-          table,
+          table: table as Exclude<
+            TableName,
+            "courseMaterials"
+          >,
           id: existing._id,
           patch: data,
         });
@@ -1645,27 +1732,35 @@ function RecordEditor({
 
         recordId =
           (await create({
-            table,
+            table: table as Exclude<
+              TableName,
+              "courseMaterials"
+            >,
             data,
           })) as string;
-
       }
 
+      /*
+       * PROPERTY / COURSE / EVENT IMAGE UPLOAD
+       *
+       * These continue using the existing
+       * attachImages workflow.
+       */
       const selectedFiles =
         (form.photoFiles ??
           []) as File[];
 
+      const imageTable =
+        table === "properties" ||
+        table === "courses" ||
+        table === "events"
+          ? table
+          : null;
+
       if (
         recordId &&
         selectedFiles.length &&
-        (
-          table ===
-            "properties" ||
-          table ===
-            "courses" ||
-          table ===
-            "events"
-        )
+        imageTable
       ) {
 
         const storageIds:
@@ -1685,13 +1780,11 @@ function RecordEditor({
               uploadUrl,
               {
                 method: "POST",
-
                 headers: {
                   "Content-Type":
                     file.type ||
                     "application/octet-stream",
                 },
-
                 body: file,
               },
             );
@@ -1711,7 +1804,7 @@ function RecordEditor({
         }
 
         await attachImages({
-          table,
+          table: imageTable,
           id: recordId,
           storageIds,
         });
@@ -2418,6 +2511,43 @@ function Field({
   }
 
   // =======================================================
+  // COURSE MATERIAL UPLOAD
+  // =======================================================
+
+  if (
+    field.key ===
+    "materialFile"
+  ) {
+
+    return (
+      <div className="dj-field full">
+
+        <span>
+          {field.label}
+        </span>
+
+        <input
+          type="file"
+          accept="video/*,application/pdf,audio/*,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.zip"
+          onChange={(event) =>
+            onChange(
+              event.target.files?.[0] ??
+                undefined,
+            )
+          }
+        />
+
+        <small className="dj-help">
+          Upload a recorded class, PDF,
+          notes, audio or another course
+          resource.
+        </small>
+
+      </div>
+    );
+  }
+
+  // =======================================================
   // PHOTO UPLOAD
   // =======================================================
 
@@ -2781,6 +2911,43 @@ function makeInitial(
   }
 
   // =======================================================
+  // COURSE MATERIALS
+  // =======================================================
+
+  if (
+    table ===
+    "courseMaterials"
+  ) {
+
+    return {
+
+      courseSlug: "",
+
+      title: "",
+
+      type:
+        "VIDEO",
+
+      description: "",
+
+      url: "",
+
+      storageId: "",
+
+      sortOrder: 0,
+
+      status:
+        "DRAFT",
+
+      materialFile:
+        undefined,
+
+      ...base,
+
+    };
+  }
+
+  // =======================================================
   // EVENTS
   // =======================================================
 
@@ -3037,6 +3204,7 @@ function cleanForm(
   delete data._id;
   delete data._creationTime;
   delete data.photoFiles;
+  delete data.materialFile;
 
   // =======================================================
   // COURSES
@@ -3593,6 +3761,96 @@ function editorFields(
             full: true,
             placeholder:
               "Example:\n1\n2\n3\n4",
+          },
+        ),
+
+      ];
+
+    // =====================================================
+    // COURSE MATERIALS
+    // =====================================================
+
+    case "courseMaterials":
+
+      return [
+
+        f(
+          "courseSlug",
+          "Course slug",
+          {
+            required: true,
+            placeholder:
+              "Example: predictive-astrology",
+          },
+        ),
+
+        f(
+          "title",
+          "Material title",
+          {
+            required: true,
+            placeholder:
+              "Example: Predictive Astrology Class 01",
+          },
+        ),
+
+        f(
+          "type",
+          "Material type",
+          {
+            options: [
+              "VIDEO",
+              "PDF",
+              "NOTE",
+              "LIVE_CLASS",
+              "GOOGLE_MEET",
+              "LINK",
+              "RESOURCE",
+            ],
+          },
+        ),
+
+        f(
+          "description",
+          "Description",
+          {
+            full: true,
+            placeholder:
+              "Explain what this class, PDF or resource contains.",
+          },
+        ),
+
+        f(
+          "materialFile",
+          "Upload material",
+          {
+            full: true,
+          },
+        ),
+
+        f(
+          "url",
+          "External URL / Google Meet link",
+          {
+            full: true,
+            placeholder:
+              "Use this for Google Meet, YouTube, Drive or another external resource.",
+          },
+        ),
+
+        f(
+          "sortOrder",
+          "Display order",
+        ),
+
+        f(
+          "status",
+          "Publishing status",
+          {
+            options: [
+              "DRAFT",
+              "PUBLISHED",
+            ],
           },
         ),
 

@@ -52,21 +52,55 @@ export const bySlug = query({
     slug: v.string(),
   },
 
-  handler: async (
-    ctx,
-    args,
-  ) => {
-    return await ctx.db
+  handler: async (ctx, args) => {
+    const course = await ctx.db
       .query("courses")
-      .withIndex(
-        "by_slug",
-        (q) =>
-          q.eq(
-            "slug",
-            args.slug,
-          ),
-      )
+      .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .unique();
+
+    if (!course) {
+      return null;
+    }
+
+    let imageUrl: string | null = null;
+
+    if (course.image) {
+      try {
+        imageUrl = await ctx.storage.getUrl(
+          course.image as any
+        );
+      } catch {
+        // If image is already a normal URL/path,
+        // keep it as-is.
+        imageUrl = course.image;
+      }
+    }
+
+    const imageUrls: string[] = [];
+
+    if (course.images) {
+      for (const image of course.images) {
+        try {
+          const url = await ctx.storage.getUrl(
+            image as any
+          );
+
+          if (url) {
+            imageUrls.push(url);
+          }
+        } catch {
+          if (image) {
+            imageUrls.push(image);
+          }
+        }
+      }
+    }
+
+    return {
+      ...course,
+      image: imageUrl,
+      images: imageUrls,
+    };
   },
 });
 

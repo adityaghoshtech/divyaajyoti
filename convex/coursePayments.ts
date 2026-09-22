@@ -14,320 +14,280 @@ import {
    GENERATE PAYMENT UPLOAD URL
 ========================================================= */
 
-export const generateUploadUrl =
-  mutation({
-    args: {},
+export const generateUploadUrl = mutation({
+  args: {},
 
-    handler: async (ctx) => {
-      return await ctx.storage.generateUploadUrl();
-    },
-  });
+  handler: async (ctx) => {
+    return await ctx.storage.generateUploadUrl();
+  },
+});
 
 
 /* =========================================================
    SUBMIT PAYMENT
 ========================================================= */
 
-export const submitPayment =
-  mutation({
-    args: {
-      courseSlug:
-        v.string(),
+export const submitPayment = mutation({
+  args: {
+    courseSlug: v.string(),
+    courseTitle: v.string(),
 
-      courseTitle:
-        v.string(),
+    name: v.string(),
+    email: v.string(),
+    phone: v.string(),
 
-      name:
-        v.string(),
+    amount: v.number(),
 
-      email:
-        v.string(),
+    paymentReference: v.string(),
 
-      phone:
-        v.string(),
+    paymentProofStorageId:
+      v.optional(
+        v.id("_storage"),
+      ),
+  },
 
-      amount:
-        v.number(),
+  handler: async (ctx, args) => {
+    const name =
+      args.name.trim();
 
-      paymentReference:
-        v.string(),
+    const email =
+      args.email
+        .trim()
+        .toLowerCase();
 
-      paymentProofStorageId:
-        v.optional(
-          v.id("_storage"),
-        ),
-    },
+    const phone =
+      normalizePhone(args.phone);
 
-    handler: async (
-      ctx,
-      args,
-    ) => {
+    const paymentReference =
+      args.paymentReference.trim();
 
-      /* =====================================================
-         CLEAN DATA
-      ===================================================== */
+    if (!name) {
+      throw new Error(
+        "Please enter your full name.",
+      );
+    }
 
-      const name =
-        args.name.trim();
+    if (!email) {
+      throw new Error(
+        "Please enter your email address.",
+      );
+    }
 
-      const email =
-        args.email
-          .trim()
-          .toLowerCase();
+    if (!phone) {
+      throw new Error(
+        "Please enter your phone number.",
+      );
+    }
 
-      const phone =
-        normalizePhone(
-          args.phone,
-        );
+    if (paymentReference.length < 4) {
+      throw new Error(
+        "Please enter a valid payment reference / UTR.",
+      );
+    }
 
-      const paymentReference =
-        args.paymentReference.trim();
-
-
-      /* =====================================================
-         VALIDATION
-      ===================================================== */
-
-      if (!name) {
-        throw new Error(
-          "Please enter your full name.",
-        );
-      }
-
-      if (!email) {
-        throw new Error(
-          "Please enter your email address.",
-        );
-      }
-
-      if (!phone) {
-        throw new Error(
-          "Please enter your phone number.",
-        );
-      }
-
-      if (
-        paymentReference.length <
-        4
-      ) {
-        throw new Error(
-          "Please enter a valid payment reference / UTR.",
-        );
-      }
-
-      if (
-        args.amount < 0
-      ) {
-        throw new Error(
-          "Invalid payment amount.",
-        );
-      }
+    if (args.amount < 0) {
+      throw new Error(
+        "Invalid payment amount.",
+      );
+    }
 
 
-      /* =====================================================
-         FIND ALL ENROLLMENTS FOR THIS PHONE
-      ===================================================== */
+    /* =====================================================
+       FIND ONLY THIS PHONE
+    ===================================================== */
 
-      const existing =
-        await ctx.db
-          .query(
-            "courseEnrollments",
-          )
-          .withIndex(
-            "by_phone",
-            (q) =>
-              q.eq(
-                "phone",
-                phone,
-              ),
-          )
-          .collect();
+    const enrollments =
+      await ctx.db
+        .query("courseEnrollments")
+        .withIndex(
+          "by_phone",
+          (q) =>
+            q.eq(
+              "phone",
+              phone,
+            ),
+        )
+        .collect();
 
 
-      /* =====================================================
-         ONLY THIS COURSE
-      ===================================================== */
+    /* =====================================================
+       FIND ONLY THIS PHONE + THIS COURSE
+    ===================================================== */
 
-      const sameCourse =
-        existing
-          .filter(
-            (item) =>
-              item.courseSlug ===
-              args.courseSlug,
-          )
-          .sort(
-            (a, b) =>
-              b.createdAt -
-              a.createdAt,
-          );
-
-
-      /* =====================================================
-         CHECK WHETHER THIS USER ALREADY OWNS THE COURSE
-
-         IMPORTANT:
-
-         This does NOT check the course globally.
-
-         It checks:
-
-           THIS PHONE
-           +
-           THIS COURSE
-      ===================================================== */
-
-      const approvedEnrollment =
-        sameCourse.find(
+    const sameCourse =
+      enrollments
+        .filter(
           (item) =>
-            String(
-              item.status ?? "",
-            ).toUpperCase() ===
-            "APPROVED",
+            item.courseSlug ===
+            args.courseSlug,
+        )
+        .sort(
+          (a, b) =>
+            b.createdAt -
+            a.createdAt,
         );
 
 
-      if (approvedEnrollment) {
-        return {
-          enrollmentId:
-            approvedEnrollment._id,
+    /* =====================================================
+       ALREADY APPROVED
+    ===================================================== */
 
-          status:
-            "APPROVED",
-        };
-      }
+    const approved =
+      sameCourse.find(
+        (item) =>
+          String(
+            item.status ?? "",
+          ).toUpperCase() ===
+          "APPROVED",
+      );
 
-
-      /* =====================================================
-         CHECK FOR EXISTING PENDING PAYMENT
-      ===================================================== */
-
-      const pendingEnrollment =
-        sameCourse.find(
-          (item) =>
-            String(
-              item.status ?? "",
-            ).toUpperCase() ===
-            "PENDING",
-        );
-
-
-      if (pendingEnrollment) {
-        return {
-          enrollmentId:
-            pendingEnrollment._id,
-
-          status:
-            "PENDING",
-        };
-      }
-
-
-      /* =====================================================
-         PAYMENT PROOF URL
-      ===================================================== */
-
-      let paymentProofUrl:
-        | string
-        | undefined =
-        undefined;
-
-
-      if (
-        args.paymentProofStorageId
-      ) {
-        paymentProofUrl =
-          (
-            await ctx.storage.getUrl(
-              args.paymentProofStorageId,
-            )
-          ) || undefined;
-      }
-
-
-      /* =====================================================
-         CREATE NEW ENROLLMENT
-      ===================================================== */
-
-      const enrollmentId =
-        await ctx.db.insert(
-          "courseEnrollments",
-          {
-            courseSlug:
-              args.courseSlug,
-
-            courseTitle:
-              args.courseTitle,
-
-            name,
-
-            email,
-
-            phone,
-
-            amount:
-              args.amount,
-
-            currency:
-              "INR",
-
-            paymentReference:
-              paymentReference,
-
-            paymentProofStorageId:
-              args.paymentProofStorageId,
-
-            paymentProofUrl:
-              paymentProofUrl,
-
-            status:
-              "PENDING",
-
-            createdAt:
-              Date.now(),
-
-            updatedAt:
-              Date.now(),
-          },
-        );
-
-
-      /* =====================================================
-         RETURN
-      ===================================================== */
-
+    if (approved) {
       return {
-        enrollmentId,
+        enrollmentId:
+          approved._id,
+
+        status:
+          "APPROVED",
+      };
+    }
+
+
+    /* =====================================================
+       ALREADY PENDING
+    ===================================================== */
+
+    const pending =
+      sameCourse.find(
+        (item) =>
+          String(
+            item.status ?? "",
+          ).toUpperCase() ===
+          "PENDING",
+      );
+
+    if (pending) {
+      return {
+        enrollmentId:
+          pending._id,
 
         status:
           "PENDING",
       };
-    },
-  });
+    }
+
+
+    /* =====================================================
+       PAYMENT PROOF URL
+    ===================================================== */
+
+    let paymentProofUrl:
+      | string
+      | undefined;
+
+    if (
+      args.paymentProofStorageId
+    ) {
+      paymentProofUrl =
+        (
+          await ctx.storage.getUrl(
+            args.paymentProofStorageId,
+          )
+        ) || undefined;
+    }
+
+
+    /* =====================================================
+       CREATE NEW ENROLLMENT
+
+       IMPORTANT:
+
+       Every phone can buy the same course.
+
+       Example:
+
+       9876543123 + predictive-astrology
+       9123456789 + predictive-astrology
+
+       are two completely different enrollments.
+    ===================================================== */
+
+    const now =
+      Date.now();
+
+    const enrollmentId =
+      await ctx.db.insert(
+        "courseEnrollments",
+        {
+          courseSlug:
+            args.courseSlug,
+
+          courseTitle:
+            args.courseTitle,
+
+          name,
+
+          email,
+
+          phone,
+
+          amount:
+            args.amount,
+
+          currency:
+            "INR",
+
+          paymentReference,
+
+          paymentProofStorageId:
+            args.paymentProofStorageId,
+
+          paymentProofUrl,
+
+          status:
+            "PENDING",
+
+          createdAt:
+            now,
+
+          updatedAt:
+            now,
+        },
+      );
+
+
+
+
+    return {
+      enrollmentId,
+
+      status:
+        "PENDING",
+    };
+  },
+});
 
 
 /* =========================================================
    GET ENROLLMENT BY ID
 ========================================================= */
 
-export const getEnrollment =
-  query({
-    args: {
-      enrollmentId:
-        v.id(
-          "courseEnrollments",
-        ),
-    },
+export const getEnrollment = query({
+  args: {
+    enrollmentId:
+      v.id(
+        "courseEnrollments",
+      ),
+  },
 
-    handler: async (
-      ctx,
-      args,
-    ) => {
-
-      return await ctx.db.get(
-        args.enrollmentId,
-      );
-    },
-  });
+  handler: async (
+    ctx,
+    args,
+  ) => {
+    return await ctx.db.get(
+      args.enrollmentId,
+    );
+  },
+});
 
 
 /* =========================================================
@@ -347,6 +307,7 @@ export const getEnrollmentByPhone =
     handler: async (
       ctx,
       args,
+    
     ) => {
 
       const phone =
@@ -376,11 +337,8 @@ export const getEnrollmentByPhone =
           .collect();
 
 
-      /* =====================================================
-         ONLY THIS USER + THIS COURSE
 
-         Latest enrollment first.
-      ===================================================== */
+
 
       const matching =
         enrollments
@@ -405,9 +363,7 @@ export const getEnrollmentByPhone =
 
 
 /* =========================================================
-   GET MY COURSES
-
-   ONLY APPROVED COURSES FOR THIS PHONE.
+   MY COURSES
 ========================================================= */
 
 export const getMyCourses =
@@ -421,18 +377,18 @@ export const getMyCourses =
       ctx,
       args,
     ) => {
-
+    
       const phone =
         normalizePhone(
           args.phone,
         );
 
-
-      if (!phone) {
+      
+        if (!phone) {
         return [];
       }
 
-
+      
       const enrollments =
         await ctx.db
           .query(
@@ -448,7 +404,7 @@ export const getMyCourses =
           )
           .collect();
 
-
+      
       return enrollments
         .filter(
           (item) =>
@@ -483,7 +439,7 @@ export const listEnrollments =
       ctx,
       args,
     ) => {
-
+    
       const enrollments =
         await ctx.db
           .query(
@@ -497,24 +453,23 @@ export const listEnrollments =
         return enrollments;
       }
 
-
-      const wantedStatus =
+      const wanted =
         args.status.toUpperCase();
 
-
+      
       return enrollments.filter(
         (item) =>
           String(
             item.status ?? "",
           ).toUpperCase() ===
-          wantedStatus,
+          wanted,
       );
     },
   });
 
 
 /* =========================================================
-   ADMIN: APPROVE PAYMENT
+   ADMIN: APPROVE
 ========================================================= */
 
 export const approvePayment =
@@ -525,10 +480,7 @@ export const approvePayment =
           "courseEnrollments",
         ),
 
-      /*
-       * Optional because your admin UI
-       * can send an admin note.
-       */
+
       adminNote:
         v.optional(
           v.string(),
@@ -539,63 +491,55 @@ export const approvePayment =
       ctx,
       args,
     ) => {
-
-      /* ===================================================
-         GET ENROLLMENT
-      =================================================== */
-
+    
       const enrollment =
         await ctx.db.get(
           args.enrollmentId,
         );
 
-
+      
+    
       if (!enrollment) {
         throw new Error(
           "Enrollment not found.",
         );
       }
 
-
-      /* ===================================================
-         CURRENT STATUS
-      =================================================== */
-
-      const currentStatus =
+      const status =
         String(
           enrollment.status ?? "",
         ).toUpperCase();
 
 
-      /* ===================================================
-         ALREADY APPROVED
-      =================================================== */
 
+        
       if (
-        currentStatus ===
+        status ===
         "APPROVED"
       ) {
         return {
-          success:
-            true,
-
+          success: true,
           enrollmentId:
             args.enrollmentId,
-
+        
           status:
             "APPROVED",
         };
       }
 
-
-      /* ===================================================
-         APPROVE
-      =================================================== */
+      if (
+        status ===
+        "REJECTED"
+      ) {
+        throw new Error(
+          "This payment was rejected. Move it to pending before approving.",
+        );
+      }
 
       const now =
         Date.now();
 
-
+      
       await ctx.db.patch(
         args.enrollmentId,
         {
@@ -603,7 +547,7 @@ export const approvePayment =
             "APPROVED",
 
           adminNote:
-            args.adminNote ??
+            args.adminNote?.trim() ||
             "Payment verified by Divyajyoti admin.",
 
           approvedAt:
@@ -621,42 +565,9 @@ export const approvePayment =
       );
 
 
-      /* ===================================================
-         VERIFY DATABASE UPDATE
-      =================================================== */
-
-      const updated =
-        await ctx.db.get(
-          args.enrollmentId,
-        );
-
-
-      if (!updated) {
-        throw new Error(
-          "Enrollment could not be loaded after approval.",
-        );
-      }
-
-
-      if (
-        String(
-          updated.status ?? "",
-        ).toUpperCase() !==
-        "APPROVED"
-      ) {
-        throw new Error(
-          "Payment approval failed. Enrollment status was not updated.",
-        );
-      }
-
-
-      /* ===================================================
-         SUCCESS
-      =================================================== */
 
       return {
-        success:
-          true,
+        success: true,
 
         enrollmentId:
           args.enrollmentId,
@@ -669,7 +580,7 @@ export const approvePayment =
 
 
 /* =========================================================
-   ADMIN: REJECT PAYMENT
+   ADMIN: REJECT
 ========================================================= */
 
 export const rejectPayment =
@@ -690,32 +601,27 @@ export const rejectPayment =
       ctx,
       args,
     ) => {
-
+      
       const enrollment =
         await ctx.db.get(
           args.enrollmentId,
         );
 
-
+      
       if (!enrollment) {
         throw new Error(
           "Enrollment not found.",
         );
       }
 
-
-      const currentStatus =
+      const status =
         String(
           enrollment.status ?? "",
         ).toUpperCase();
 
-
-      /* ===================================================
-         DO NOT REJECT APPROVED PAYMENT
-      =================================================== */
-
+      
       if (
-        currentStatus ===
+        status ===
         "APPROVED"
       ) {
         throw new Error(
@@ -724,9 +630,7 @@ export const rejectPayment =
       }
 
 
-      /* ===================================================
-         REJECT
-      =================================================== */
+
 
       await ctx.db.patch(
         args.enrollmentId,
@@ -735,7 +639,7 @@ export const rejectPayment =
             "REJECTED",
 
           adminNote:
-            args.adminNote ??
+            args.adminNote?.trim() ||
             "Payment was rejected by Divyajyoti admin.",
 
           rejectedAt:
@@ -748,8 +652,7 @@ export const rejectPayment =
 
 
       return {
-        success:
-          true,
+        success: true,
 
         enrollmentId:
           args.enrollmentId,
@@ -785,7 +688,7 @@ export const resetToPending =
         );
 
 
-      if (!enrollment) {
+        if (!enrollment) {
         throw new Error(
           "Enrollment not found.",
         );
@@ -817,8 +720,7 @@ export const resetToPending =
 
 
       return {
-        success:
-          true,
+        success: true,
 
         enrollmentId:
           args.enrollmentId,
