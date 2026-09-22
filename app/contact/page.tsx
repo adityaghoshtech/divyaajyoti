@@ -1,4 +1,3 @@
-```tsx
 import { LeadForm } from '@/components/lead-form';
 import { Mail, Phone, MapPin } from 'lucide-react';
 
@@ -8,9 +7,7 @@ export default function Contact() {
       <section className="pagehero">
         <div className="container">
           <div className="eyebrow">Contact</div>
-
           <h1>Tell us what you're working through.</h1>
-
           <p>
             Property, guidance, learning, partnerships or something that
             doesn't fit neatly into a category — start a conversation.
@@ -72,4 +69,3 @@ export default function Contact() {
     </main>
   );
 }
-```
