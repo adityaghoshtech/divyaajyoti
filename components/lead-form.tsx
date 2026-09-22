@@ -4,7 +4,7 @@ import { FormEvent, useState } from 'react';
 import { CheckCircle2, Loader2 } from 'lucide-react';
 
 type LeadFormProps = {
-  title?: string;
+  title?: string; 
   source?: string;
 };
 
