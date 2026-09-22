@@ -8,193 +8,451 @@ import {
 
 
 /* =========================================================
+   HELPERS
+========================================================= */
+
+function cleanPhone(
+  value: string,
+) {
+  return normalizePhone(
+    String(value ?? ""),
+  );
+}
+
+
+function cleanSlug(
+  value: string,
+) {
+  return String(
+    value ?? "",
+  )
+    .trim()
+    .toLowerCase();
+}
+
+
+function isApproved(
+  status?: string,
+) {
+  return (
+    String(
+      status ?? "",
+    )
+      .trim()
+      .toUpperCase() ===
+    "APPROVED"
+  );
+}
+
+
+function isPublished(
+  status?: string,
+) {
+  return (
+    String(
+      status ?? "",
+    )
+      .trim()
+      .toUpperCase() ===
+    "PUBLISHED"
+  );
+}
+
+
+/*
+ * Important compatibility helper.
+ *
+ * New enrollments should store a normalized phone number.
+ * Older records may contain values such as:
+ *
+ *   +91 98368 02673
+ *   98368-02673
+ *   9836802673
+ *
+ * The by_phone index only finds an exact stored value, so
+ * when the indexed lookup does not find a record we perform
+ * a fallback normalized comparison. This makes existing
+ * enrollments work without asking students to buy again.
+ */
+async function findEnrollmentsForPhone(
+  ctx: any,
+  phone: string,
+) {
+  const normalizedPhone =
+    cleanPhone(phone);
+
+  if (!normalizedPhone) {
+    return [];
+  }
+
+  const indexed =
+    await ctx.db
+      .query(
+        "courseEnrollments",
+      )
+      .withIndex(
+        "by_phone",
+        (q: any) =>
+          q.eq(
+            "phone",
+            normalizedPhone,
+          ),
+      )
+      .collect();
+
+  /*
+   * Also scan legacy records even when the exact indexed
+   * phone has other enrollments. This is important when a
+   * student has older purchases stored with formatting such
+   * as +91 98368 02673 while newer purchases use digits only.
+   */
+  const all =
+    await ctx.db
+      .query(
+        "courseEnrollments",
+      )
+      .collect();
+
+  const legacyMatches = all.filter(
+    (item: any) =>
+      cleanPhone(
+        item.phone,
+      ) ===
+      normalizedPhone,
+  );
+
+  const seen = new Set<string>();
+  return [...indexed, ...legacyMatches].filter((item: any) => {
+    const id = String(item._id);
+    if (seen.has(id)) return false;
+    seen.add(id);
+    return true;
+  });
+}
+
+
+/*
+ * Find a course by normalized slug.
+ *
+ * The normal path uses the by_slug index.
+ * The fallback handles an older record whose slug has
+ * different casing or accidental surrounding whitespace.
+ */
+async function findCourseBySlug(
+  ctx: any,
+  slug: string,
+) {
+  const normalizedSlug =
+    cleanSlug(slug);
+
+  if (!normalizedSlug) {
+    return null;
+  }
+
+  const indexed =
+    await ctx.db
+      .query(
+        "courses",
+      )
+      .withIndex(
+        "by_slug",
+        (q: any) =>
+          q.eq(
+            "slug",
+            normalizedSlug,
+          ),
+      )
+      .unique();
+
+  if (indexed) {
+    return indexed;
+  }
+
+  const all =
+    await ctx.db
+      .query(
+        "courses",
+      )
+      .collect();
+
+  return (
+    all.find(
+      (course: any) =>
+        cleanSlug(
+          course.slug,
+        ) ===
+        normalizedSlug,
+    ) ??
+    null
+  );
+}
+
+
+/*
+ * Course materials can also contain legacy courseSlug
+ * formatting. Use the index first and fall back to a
+ * normalized comparison when necessary.
+ */
+async function findCourseMaterials(
+  ctx: any,
+  courseSlug: string,
+) {
+  const normalizedSlug =
+    cleanSlug(courseSlug);
+
+  if (!normalizedSlug) {
+    return [];
+  }
+
+  const indexed =
+    await ctx.db
+      .query(
+        "courseMaterials",
+      )
+      .withIndex(
+        "by_course",
+        (q: any) =>
+          q.eq(
+            "courseSlug",
+            normalizedSlug,
+          ),
+      )
+      .collect();
+
+  if (
+    indexed.length > 0
+  ) {
+    return indexed;
+  }
+
+  const all =
+    await ctx.db
+      .query(
+        "courseMaterials",
+      )
+      .collect();
+
+  return all.filter(
+    (material: any) =>
+      cleanSlug(
+        material.courseSlug,
+      ) ===
+      normalizedSlug,
+  );
+}
+
+
+/*
+ * Resolve a Convex Storage file into a browser URL.
+ *
+ * storageId is stored as a string in the current schema,
+ * so it is cast to the Convex storage Id only at the point
+ * where getUrl() needs it.
+ */
+async function resolveStorageUrl(
+  ctx: any,
+  storageId?: string,
+) {
+  if (!storageId) {
+    return null;
+  }
+
+  try {
+    return await ctx.storage.getUrl(
+      storageId as Id<"_storage">,
+    );
+  } catch {
+    return null;
+  }
+}
+
+
+/* =========================================================
    GET ALL APPROVED COURSES FOR ONE PHONE NUMBER
 ========================================================= */
 
-export const getMyCourses = query({
+export const getMyCourses =
+  query({
 
-  args: {
-    phone: v.string(),
-  },
+    args: {
+      phone:
+        v.string(),
+    },
 
-  handler: async (
-    ctx,
-    args,
-  ) => {
+    handler: async (
+      ctx,
+      args,
+    ) => {
 
-    const phone =
-      normalizePhone(
-        args.phone,
-      );
+      const phone =
+        cleanPhone(
+          args.phone,
+        );
 
-    if (!phone) {
-      return [];
-    }
-
-
-    /* =====================================================
-       FIND ALL ENROLLMENTS FOR THIS PHONE
-    ===================================================== */
-
-    const enrollments =
-      await ctx.db
-        .query(
-          "courseEnrollments",
-        )
-        .withIndex(
-          "by_phone",
-          (q) =>
-            q.eq(
-              "phone",
-              phone,
-            ),
-        )
-        .collect();
+      if (!phone) {
+        return [];
+      }
 
 
-    /* =====================================================
-       ONLY APPROVED ENROLLMENTS
-    ===================================================== */
+      /* ================================================
+         FIND ENROLLMENTS FOR THIS STUDENT
+      ================================================ */
 
-    const approved =
-      enrollments
-        .filter(
-          (item) =>
-            String(
-              item.status ?? "",
-            ).toUpperCase() ===
-            "APPROVED",
-        )
-        .sort(
-          (a, b) =>
-            b.createdAt -
-            a.createdAt,
+      const enrollments =
+        await findEnrollmentsForPhone(
+          ctx,
+          phone,
         );
 
 
-    /* =====================================================
-       LOAD COURSE INFORMATION
-    ===================================================== */
+      /* ================================================
+         ONLY APPROVED ENROLLMENTS
+      ================================================ */
 
-    const result =
-      await Promise.all(
+      const approved =
+        enrollments
+          .filter(
+            (item: any) =>
+              isApproved(
+                item.status,
+              ),
+          )
+          .sort(
+            (
+              a: any,
+              b: any,
+            ) =>
+              Number(
+                b.createdAt ??
+                0,
+              ) -
+              Number(
+                a.createdAt ??
+                0,
+              ),
+          );
 
-        approved.map(
-          async (
-            enrollment,
-          ) => {
 
-            const course =
-              await ctx.db
-                .query(
-                  "courses",
+      /* ================================================
+         LOAD COURSE INFORMATION
+      ================================================ */
+
+      const result =
+        await Promise.all(
+          approved.map(
+            async (
+              enrollment: any,
+            ) => {
+
+              const course =
+                await findCourseBySlug(
+                  ctx,
+                  enrollment.courseSlug,
+                );
+
+              if (!course) {
+                return null;
+              }
+
+
+              const lessonCount =
+                Array.isArray(
+                  course.lessons,
                 )
-                .withIndex(
-                  "by_slug",
-                  (q) =>
-                    q.eq(
-                      "slug",
-                      enrollment.courseSlug,
-                    ),
-                )
-                .unique();
-
-
-            /* =============================================
-               LESSON COUNT
-            ============================================= */
-
-            const lessonCount =
-              course
-                ? Array.isArray(
-                    course.lessons,
-                  )
                   ? course.lessons.length
                   : Number(
-                      course.lessons ||
-                        0,
-                    )
-                : 0;
+                      course.lessons ??
+                      0,
+                    );
 
 
-            /* =============================================
-               RETURN COURSE
-            ============================================= */
+              return {
 
-            return {
+                enrollmentId:
+                  enrollment._id,
 
-              enrollmentId:
-                enrollment._id,
+                courseSlug:
+                  course.slug,
 
-              courseSlug:
-                enrollment.courseSlug,
+                courseTitle:
+                  course.title,
 
-              courseTitle:
-                enrollment.courseTitle,
+                name:
+                  enrollment.name,
 
-              name:
-                enrollment.name,
+                email:
+                  enrollment.email,
 
-              email:
-                enrollment.email,
+                phone:
+                  enrollment.phone,
 
-              approvedAt:
-                enrollment.approvedAt ??
-                enrollment.createdAt,
+                status:
+                  enrollment.status,
 
-              course:
-                course
-                  ? {
+                approvedAt:
+                  enrollment.approvedAt ??
+                  enrollment.createdAt,
 
-                      title:
-                        course.title,
+                course: {
 
-                      slug:
-                        course.slug,
+                  title:
+                    course.title,
 
-                      category:
-                        course.category ??
-                        "Learning",
+                  slug:
+                    course.slug,
 
-                      duration:
-                        course.duration,
+                  category:
+                    course.category ??
+                    "Learning",
 
-                      level:
-                        course.level,
+                  duration:
+                    course.duration,
 
-                      description:
-                        course.description,
+                  level:
+                    course.level,
 
-                      instructor:
-                        course.instructor,
+                  description:
+                    course.description,
 
-                      price:
-                        course.price ??
-                        0,
+                  instructor:
+                    course.instructor,
 
-                      image:
-                        course.image ??
-                        course.images?.[0] ??
-                        "",
+                  price:
+                    course.price ??
+                    0,
 
-                      lessonCount,
+                  image:
+                    course.image ??
+                    course.images?.[0] ??
+                    "",
 
-                    }
-                  : null,
+                  lessonCount,
 
-            };
+                },
 
-          },
-        ),
+              };
 
+            },
+          ),
+        );
+
+
+      /*
+       * A deleted course should not create a null card
+       * on the student's My Courses page.
+       */
+      return result.filter(
+        (
+          item,
+        ): item is NonNullable<
+          typeof item
+        > =>
+          item !== null,
       );
 
+    },
 
-    return result;
-
-  },
-
-});
+  });
 
 
 /* =========================================================
@@ -212,6 +470,11 @@ export const getCourseAccess =
       courseSlug:
         v.string(),
 
+      enrollmentId:
+        v.optional(
+          v.id("courseEnrollments"),
+        ),
+
     },
 
     handler: async (
@@ -219,96 +482,108 @@ export const getCourseAccess =
       args,
     ) => {
 
-      /* ===================================================
-         NORMALIZE PHONE
-      =================================================== */
+      /* ================================================
+         NORMALIZE INPUT
+      ================================================ */
 
       const phone =
-        normalizePhone(
+        cleanPhone(
           args.phone,
         );
 
-      if (!phone) {
+      const courseSlug =
+        cleanSlug(
+          args.courseSlug,
+        );
+
+      if (
+        !phone ||
+        !courseSlug
+      ) {
         return null;
       }
 
 
-      /* ===================================================
-         FIND ENROLLMENTS FOR THIS PHONE
-      =================================================== */
+      /* ================================================
+         FIND THE APPROVED ENROLLMENT
 
-      const enrollments =
-        await ctx.db
-          .query(
-            "courseEnrollments",
-          )
-          .withIndex(
-            "by_phone",
-            (q) =>
-              q.eq(
-                "phone",
-                phone,
-              ),
-          )
-          .collect();
+         When /my-courses supplied an enrollmentId, use that
+         exact record. This is the authoritative record that
+         the student already saw as APPROVED.
 
+         The phone and course slug are still checked so one
+         enrollment cannot accidentally be used for another
+         student or another course.
+      ================================================ */
 
-      /* ===================================================
-         ACCESS RULE
+      let approvedEnrollment: any = null;
 
-         USER MUST HAVE:
+      if (args.enrollmentId) {
+        const exactEnrollment =
+          await ctx.db.get(args.enrollmentId);
 
-         PHONE
-         +
-         COURSE SLUG
-         +
-         APPROVED STATUS
+        if (exactEnrollment) {
+          const enrollmentPhone = cleanPhone(
+            exactEnrollment.phone,
+          );
 
-         This prevents one student's approval from
-         giving another student access.
-      =================================================== */
+          const enrollmentSlug = cleanSlug(
+            exactEnrollment.courseSlug,
+          );
 
-      const enrollment =
-        enrollments
-          .filter(
-            (item) =>
-              item.courseSlug ===
-                args.courseSlug &&
-              String(
-                item.status ?? "",
-              ).toUpperCase() ===
-                "APPROVED",
-          )
-          .sort(
-            (a, b) =>
-              b.createdAt -
-              a.createdAt,
-          )[0];
+          if (
+            enrollmentPhone === phone &&
+            enrollmentSlug === courseSlug &&
+            isApproved(exactEnrollment.status)
+          ) {
+            approvedEnrollment = exactEnrollment;
+          }
+        }
+      }
 
+      /*
+       * Backward-compatible fallback for old links that do
+       * not provide an enrollmentId.
+       */
+      if (!approvedEnrollment) {
+        const enrollments =
+          await findEnrollmentsForPhone(
+            ctx,
+            phone,
+          );
 
-      if (!enrollment) {
+        const matching =
+          enrollments
+            .filter(
+              (item: any) =>
+                cleanSlug(item.courseSlug) === courseSlug,
+            )
+            .sort(
+              (a: any, b: any) =>
+                Number(b.createdAt ?? 0) -
+                Number(a.createdAt ?? 0),
+            );
+
+        approvedEnrollment =
+          matching.find((item: any) =>
+            isApproved(item.status),
+          ) ?? null;
+      }
+
+      if (!approvedEnrollment) {
         return null;
       }
 
 
-      /* ===================================================
+      /* ================================================
          FIND COURSE
-      =================================================== */
+      ================================================ */
 
       const course =
-        await ctx.db
-          .query(
-            "courses",
-          )
-          .withIndex(
-            "by_slug",
-            (q) =>
-              q.eq(
-                "slug",
-                args.courseSlug,
-              ),
-          )
-          .unique();
+        await findCourseBySlug(
+          ctx,
+          courseSlug,
+        );
 
 
       if (!course) {
@@ -316,156 +591,140 @@ export const getCourseAccess =
       }
 
 
-      /* ===================================================
-         GET ALL COURSE MATERIALS
-      =================================================== */
+      /* ================================================
+         FIND COURSE MATERIALS
+      ================================================ */
 
       const materials =
-        await ctx.db
-          .query(
-            "courseMaterials",
-          )
-          .withIndex(
-            "by_course",
-            (q) =>
-              q.eq(
-                "courseSlug",
-                args.courseSlug,
-              ),
-          )
-          .collect();
-
-
-      /* ===================================================
-         ONLY PUBLISHED MATERIALS
-
-         Then generate a URL for Convex Storage files.
-      =================================================== */
-
-      const publishedMaterials =
-        await Promise.all(
-
-          materials
-            .filter(
-              (item) =>
-                String(
-                  item.status ?? "",
-                ).toUpperCase() ===
-                "PUBLISHED",
-            )
-            .sort(
-              (a, b) =>
-                a.sortOrder -
-                b.sortOrder,
-            )
-            .map(
-              async (
-                item,
-              ) => {
-
-                /* =========================================
-                   STORAGE URL
-                ========================================= */
-
-                let storageUrl:
-                  | string
-                  | null =
-                  null;
-
-
-                if (
-                  item.storageId
-                ) {
-
-                  try {
-
-                    storageUrl =
-                      await ctx.storage.getUrl(
-                        item.storageId as Id<"_storage">,
-                      );
-
-                  } catch {
-
-                    storageUrl =
-                      null;
-
-                  }
-
-                }
-
-
-                /* =========================================
-                   RETURN MATERIAL
-                ========================================= */
-
-                return {
-
-                  id:
-                    item._id,
-
-                  courseSlug:
-                    item.courseSlug,
-
-                  title:
-                    item.title,
-
-                  type:
-                    String(
-                      item.type ?? "",
-                    ).toUpperCase(),
-
-                  description:
-                    item.description ??
-                    "",
-
-                  /*
-                   * External URL
-                   *
-                   * Example:
-                   * Google Meet
-                   * YouTube
-                   * Google Drive
-                   */
-                  url:
-                    item.url ??
-                    "",
-
-                  /*
-                   * Convex Storage URL
-                   *
-                   * Example:
-                   * MP4
-                   * PDF
-                   * DOC
-                   * Image
-                   */
-                  storageUrl,
-
-                  /*
-                   * Keep storageId available
-                   * for debugging / future use.
-                   */
-                  storageId:
-                    item.storageId ??
-                    null,
-
-                  sortOrder:
-                    item.sortOrder,
-
-                  status:
-                    item.status,
-
-                };
-
-              },
-            ),
-
+        await findCourseMaterials(
+          ctx,
+          courseSlug,
         );
 
 
-      /* ===================================================
+      /* ================================================
+         ONLY PUBLISHED MATERIALS
+      ================================================ */
+
+      const publishedMaterials =
+        materials
+          .filter(
+            (item: any) =>
+              isPublished(
+                item.status,
+              ),
+          )
+          .sort(
+            (
+              a: any,
+              b: any,
+            ) =>
+              Number(
+                a.sortOrder ??
+                0,
+              ) -
+              Number(
+                b.sortOrder ??
+                0,
+              ),
+          );
+
+
+      /* ================================================
+         RESOLVE STORAGE FILE URLS
+      ================================================ */
+
+      const resolvedMaterials =
+        await Promise.all(
+          publishedMaterials.map(
+            async (
+              item: any,
+            ) => {
+
+              const storageUrl =
+                await resolveStorageUrl(
+                  ctx,
+                  item.storageId,
+                );
+
+
+              /*
+               * fileUrl is returned as an alias so the
+               * frontend can use one consistent property
+               * regardless of which version of the page
+               * is installed.
+               */
+
+              return {
+
+                id:
+                  item._id,
+
+                courseSlug:
+                  item.courseSlug,
+
+                title:
+                  item.title,
+
+                type:
+                  String(
+                    item.type ??
+                    "",
+                  )
+                    .trim()
+                    .toUpperCase(),
+
+                description:
+                  item.description ??
+                  "",
+
+                /*
+                 * External URL:
+                 * Google Meet, YouTube, Drive, etc.
+                 */
+                url:
+                  item.url ??
+                  "",
+
+                /*
+                 * Convex Storage URL:
+                 * MP4, PDF, DOC, image, etc.
+                 */
+                storageUrl,
+
+                /*
+                 * Same resolved URL under a clearer name.
+                 */
+                fileUrl:
+                  storageUrl,
+
+                /*
+                 * Keep storageId available for
+                 * debugging and future features.
+                 */
+                storageId:
+                  item.storageId ??
+                  null,
+
+                sortOrder:
+                  Number(
+                    item.sortOrder ??
+                    0,
+                  ),
+
+                status:
+                  item.status,
+
+              };
+
+            },
+          ),
+        );
+
+
+      /* ================================================
          LESSON COUNT
-      =================================================== */
+      ================================================ */
 
       const lessonCount =
         Array.isArray(
@@ -473,45 +732,37 @@ export const getCourseAccess =
         )
           ? course.lessons.length
           : Number(
-              course.lessons ||
-                0,
+              course.lessons ??
+              0,
             );
 
 
-      /* ===================================================
+      /* ================================================
          FINAL RESPONSE
-      =================================================== */
+      ================================================ */
 
       return {
-
-        /* ===============================================
-           ENROLLMENT
-        =============================================== */
 
         enrollment: {
 
           id:
-            enrollment._id,
+            approvedEnrollment._id,
 
           name:
-            enrollment.name,
+            approvedEnrollment.name,
 
           email:
-            enrollment.email,
+            approvedEnrollment.email,
 
           phone:
-            enrollment.phone,
+            approvedEnrollment.phone,
 
           approvedAt:
-            enrollment.approvedAt ??
-            enrollment.createdAt,
+            approvedEnrollment.approvedAt ??
+            approvedEnrollment.createdAt,
 
         },
 
-
-        /* ===============================================
-           COURSE
-        =============================================== */
 
         course: {
 
@@ -551,14 +802,12 @@ export const getCourseAccess =
         },
 
 
-        /* ===============================================
-           MATERIALS
-
-           Every material here belongs to THIS course.
-        =============================================== */
-
+        /*
+         * Every material returned here belongs to
+         * THIS course and THIS approved student access.
+         */
         materials:
-          publishedMaterials,
+          resolvedMaterials,
 
       };
 

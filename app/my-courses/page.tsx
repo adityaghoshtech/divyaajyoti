@@ -50,6 +50,15 @@ export default function MyCoursesPage() {
     }
 
     setPhone(cleaned);
+
+    // Keep the same student number available to the
+    // private course page after the user opens a course.
+    if (typeof window !== "undefined") {
+      localStorage.setItem(
+        "divyajyoti_student_phone",
+        cleaned,
+      );
+    }
   };
 
 
@@ -61,6 +70,12 @@ export default function MyCoursesPage() {
     setPhone("");
     setInputPhone("");
     setError("");
+
+    if (typeof window !== "undefined") {
+      localStorage.removeItem(
+        "divyajyoti_student_phone",
+      );
+    }
   };
 
 
@@ -508,7 +523,9 @@ export default function MyCoursesPage() {
                               {/* CONTINUE */}
 
                               <Link
-                                href={`/my-courses/${item.courseSlug}`}
+                                href={`/my-courses/${item.courseSlug}?enrollmentId=${encodeURIComponent(
+                                  String(item.enrollmentId),
+                                )}`}
                                 className="student-course-button"
                               >
                                 Continue learning

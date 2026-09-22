@@ -2,75 +2,64 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import {
-  useEffect,
-  useMemo,
-  useState,
-} from "react";
-
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "convex/react";
+
 import { api } from "@/convex/_generated/api";
 
-
 /* =========================================================
-   MATERIAL TYPE
+   TYPES
 ========================================================= */
 
 type Material = {
   _id: string;
-
   courseSlug: string;
-
   title: string;
-
   type: string;
-
   description?: string;
-
   url?: string | null;
-
-  storageId?: string | null;
-
-  storageUrl?: string | null;
-
+  storageId?: string;
   sortOrder: number;
-
   status: string;
+  createdAt: number;
+  updatedAt: number;
 
-  createdAt?: number;
-
-  updatedAt?: number;
+  /*
+   * Some versions of the backend may return
+   * a resolved storage URL.
+   */
+  storageUrl?: string | null;
+  fileUrl?: string | null;
 };
-
 
 /* =========================================================
    HELPERS
 ========================================================= */
 
-function normalizeType(
-  type?: string,
-) {
-  return String(
-    type ?? "",
-  )
+function normalizePhone(value: string) {
+  return value.replace(/\D/g, "");
+}
+
+function normalizeType(value?: string) {
+  return String(value ?? "")
     .trim()
     .toUpperCase()
     .replace(/[\s-]+/g, "_");
 }
 
+function isLiveClass(material: Material) {
+  const type = normalizeType(material.type);
 
-/* =========================================================
-   RECORDED CLASS
-========================================================= */
+  return (
+    type === "LIVE" ||
+    type === "LIVE_CLASS" ||
+    type === "GOOGLE_MEET" ||
+    type === "MEET"
+  );
+}
 
-function isRecordedClass(
-  material: Material,
-) {
-
-  const type =
-    normalizeType(
-      material.type,
-    );
+function isRecordedClass(material: Material) {
+  const type = normalizeType(material.type);
 
   return (
     type === "VIDEO" ||
@@ -80,419 +69,215 @@ function isRecordedClass(
   );
 }
 
-
-/* =========================================================
-   PDF
-========================================================= */
-
-function isPdf(
-  material: Material,
-) {
-
-  const type =
-    normalizeType(
-      material.type,
-    );
+function isPdf(material: Material) {
+  const type = normalizeType(material.type);
 
   return (
     type === "PDF" ||
-    type === "DOCUMENT"
+    type === "NOTE_PDF" ||
+    type === "PDF_NOTE"
   );
 }
 
-
-/* =========================================================
-   NOTE
-========================================================= */
-
-function isNote(
-  material: Material,
-) {
-
-  const type =
-    normalizeType(
-      material.type,
-    );
+function isNote(material: Material) {
+  const type = normalizeType(material.type);
 
   return (
     type === "NOTE" ||
-    type === "NOTES"
+    type === "NOTES" ||
+    type === "STUDY_NOTE"
   );
 }
 
-
-/* =========================================================
-   LIVE CLASS
-========================================================= */
-
-function isLiveClass(
-  material: Material,
-) {
-
-  const type =
-    normalizeType(
-      material.type,
-    );
+function isResource(material: Material) {
+  const type = normalizeType(material.type);
 
   return (
-    type === "LIVE_CLASS" ||
-    type === "GOOGLE_MEET" ||
-    type === "MEET" ||
-    type === "LIVE"
-  );
-}
-
-
-/* =========================================================
-   RESOURCE
-========================================================= */
-
-function isResource(
-  material: Material,
-) {
-
-  const type =
-    normalizeType(
-      material.type,
-    );
-
-  return (
+    type === "LINK" ||
     type === "RESOURCE" ||
-    type === "LINK"
+    type === "RESOURCE_LINK"
   );
 }
 
+function materialLabel(material: Material) {
+  const type = normalizeType(material.type);
 
-/* =========================================================
-   MATERIAL LABEL
-========================================================= */
-
-function materialLabel(
-  material: Material,
-) {
-
-  if (
-    isRecordedClass(
-      material,
-    )
-  ) {
-    return "RECORDED CLASS";
-  }
-
-  if (
-    isPdf(
-      material,
-    )
-  ) {
-    return "PDF";
-  }
-
-  if (
-    isNote(
-      material,
-    )
-  ) {
-    return "COURSE NOTE";
-  }
-
-  if (
-    isLiveClass(
-      material,
-    )
-  ) {
+  if (isLiveClass(material)) {
     return "LIVE CLASS";
   }
 
-  if (
-    isResource(
-      material,
-    )
-  ) {
+  if (isRecordedClass(material)) {
+    return "RECORDED CLASS";
+  }
+
+  if (isPdf(material)) {
+    return "PDF NOTES";
+  }
+
+  if (isNote(material)) {
+    return "STUDY NOTES";
+  }
+
+  if (isResource(material)) {
     return "RESOURCE";
   }
 
-  return "COURSE MATERIAL";
+  return type || "MATERIAL";
 }
 
+function materialIcon(material: Material) {
+  if (isLiveClass(material)) {
+    return "LIVE";
+  }
+
+  if (isRecordedClass(material)) {
+    return "▶";
+  }
+
+  if (isPdf(material)) {
+    return "PDF";
+  }
+
+  if (isNote(material)) {
+    return "NOTE";
+  }
+
+  if (isResource(material)) {
+    return "↗";
+  }
+
+  return "DOC";
+}
+
+function materialHref(material: Material) {
+  /*
+   * Priority:
+   *
+   * 1. Resolved storage URL
+   * 2. External URL
+   */
+
+  if (material.storageUrl) {
+    return material.storageUrl;
+  }
+
+  if (material.fileUrl) {
+    return material.fileUrl;
+  }
+
+  if (material.url) {
+    return material.url;
+  }
+
+  return "";
+}
 
 /* =========================================================
-   PAGE
+   MAIN PAGE
 ========================================================= */
 
 export default function PrivateCoursePage() {
-
-  const params =
-    useParams();
+  const params = useParams();
 
   const slug =
-    typeof params?.slug ===
-    "string"
+    typeof params.slug === "string"
       ? params.slug
       : "";
-
 
   /* =======================================================
      STUDENT PHONE
   ======================================================= */
 
-  const [
-    phone,
-    setPhone,
-  ] =
-    useState("");
+  const [phone, setPhone] = useState("");
 
+  const [phoneReady, setPhoneReady] =
+    useState(false);
 
   useEffect(() => {
-
-    const storedPhone =
-      window.localStorage.getItem(
-        "divyajyoti_student_phone",
-      );
-
-    if (
-      storedPhone
-    ) {
-
-      setPhone(
-        storedPhone,
-      );
-
+    if (typeof window === "undefined") {
+      return;
     }
 
+    const savedPhone =
+      localStorage.getItem(
+        "divyajyoti_student_phone",
+      ) || "";
+
+    setPhone(normalizePhone(savedPhone));
+
+    setPhoneReady(true);
   }, []);
 
+  /* =======================================================
+     APPROVED COURSES FOR THIS STUDENT
+
+     The My Courses page has already established which
+     enrollment belongs to this student. We reuse that
+     enrollment here instead of performing a second,
+     independent phone lookup. This prevents the private
+     course page from rejecting a course that is already
+     visible as APPROVED on /my-courses.
+  ======================================================= */
+
+  const myCourses = useQuery(
+    api.studentCourses.getMyCourses,
+    phoneReady && phone
+      ? { phone }
+      : "skip",
+  );
+
+  const selectedCourse = useMemo(() => {
+    if (!Array.isArray(myCourses) || !slug) {
+      return null;
+    }
+
+    const normalizedSlug = slug.trim().toLowerCase();
+
+    return (
+      myCourses.find(
+        (item: any) =>
+          String(item.courseSlug ?? item.course?.slug ?? "")
+            .trim()
+            .toLowerCase() === normalizedSlug,
+      ) ?? null
+    );
+  }, [myCourses, slug]);
 
   /* =======================================================
      COURSE ACCESS
+
+     If the course is present in My Courses, pass its exact
+     enrollment ID to the backend. The backend then verifies
+     that exact approved enrollment and loads its materials.
   ======================================================= */
 
-  const access =
-    useQuery(
-      api.studentCourses.getCourseAccess,
-
-      phone && slug
-        ? {
-            phone,
-            courseSlug:
-              slug,
-          }
-        : "skip",
-    );
-
+  const access = useQuery(
+    api.studentCourses.getCourseAccess,
+    phoneReady &&
+    phone &&
+    slug &&
+    selectedCourse?.enrollmentId
+      ? {
+          phone,
+          courseSlug: slug,
+          enrollmentId: selectedCourse.enrollmentId,
+        }
+      : "skip",
+  );
 
   /* =======================================================
      LOADING
   ======================================================= */
 
-  const loading =
-    Boolean(
-      phone &&
-      slug &&
-      access ===
-        undefined,
-    );
-
-
-  /* =======================================================
-     MATERIALS
-  ======================================================= */
-
-  const materials =
-    useMemo<Material[]>(
-      () => {
-
-        if (
-          !access ||
-          !Array.isArray(
-            access.materials,
-          )
-        ) {
-          return [];
-        }
-
-        return access.materials
-          .map(
-            (
-              material,
-            ): Material => ({
-
-              _id:
-                String(
-                  material.id,
-                ),
-
-              courseSlug:
-                slug,
-
-              title:
-                material.title,
-
-              type:
-                material.type,
-
-              description:
-                material.description ??
-                "",
-
-              url:
-                material.url ??
-                null,
-
-              storageId:
-                material.storageId ??
-                null,
-
-              storageUrl:
-                material.storageUrl ??
-                null,
-
-              sortOrder:
-                Number(
-                  material.sortOrder ??
-                    0,
-                ),
-
-              status:
-                material.status ??
-                "PUBLISHED",
-
-            }),
-          )
-          .sort(
-            (a, b) =>
-              a.sortOrder -
-              b.sortOrder,
-          );
-
-      },
-      [
-        access,
-        slug,
-      ],
-    );
-
-
-  /* =======================================================
-     MATERIAL GROUPS
-  ======================================================= */
-
-  const recordedClasses =
-    useMemo(
-      () =>
-        materials.filter(
-          (
-            material,
-          ) =>
-            isRecordedClass(
-              material,
-            ),
-        ),
-      [materials],
-    );
-
-
-  const pdfNotes =
-    useMemo(
-      () =>
-        materials.filter(
-          (
-            material,
-          ) =>
-            isPdf(
-              material,
-            ),
-        ),
-      [materials],
-    );
-
-
-  const studyNotes =
-    useMemo(
-      () =>
-        materials.filter(
-          (
-            material,
-          ) =>
-            isNote(
-              material,
-            ),
-        ),
-      [materials],
-    );
-
-
-  const liveClasses =
-    useMemo(
-      () =>
-        materials.filter(
-          (
-            material,
-          ) =>
-            isLiveClass(
-              material,
-            ),
-        ),
-      [materials],
-    );
-
-
-  const resources =
-    useMemo(
-      () =>
-        materials.filter(
-          (
-            material,
-          ) =>
-            isResource(
-              material,
-            ),
-        ),
-      [materials],
-    );
-
-
-  const otherMaterials =
-    useMemo(
-      () =>
-        materials.filter(
-          (
-            material,
-          ) =>
-            !isRecordedClass(
-              material,
-            ) &&
-            !isPdf(
-              material,
-            ) &&
-            !isNote(
-              material,
-            ) &&
-            !isLiveClass(
-              material,
-            ) &&
-            !isResource(
-              material,
-            ),
-        ),
-      [materials],
-    );
-
-
-  /* =======================================================
-     LOADING STATE
-  ======================================================= */
-
   if (
-    loading
+    !phoneReady ||
+    myCourses === undefined ||
+    (selectedCourse && access === undefined)
   ) {
-
     return (
       <>
         <main className="dj-private-state">
-
-          <div className="dj-private-loader">
-            D
-          </div>
+          <div className="dj-private-loader" />
 
           <div className="dj-private-state-eyebrow">
             DIVYAJYOTI LEARNING
@@ -503,10 +288,9 @@ export default function PrivateCoursePage() {
           </h1>
 
           <p>
-            Please wait while we prepare
-            your private learning space.
+            Please wait while we check your
+            course access.
           </p>
-
         </main>
 
         <PrivateCourseStyles />
@@ -514,19 +298,14 @@ export default function PrivateCoursePage() {
     );
   }
 
-
   /* =======================================================
      NO PHONE
   ======================================================= */
 
-  if (
-    !phone
-  ) {
-
+  if (!phone) {
     return (
       <>
         <main className="dj-private-state">
-
           <div className="dj-private-state-icon">
             D
           </div>
@@ -540,9 +319,8 @@ export default function PrivateCoursePage() {
           </h1>
 
           <p>
-            We could not find the student
-            phone number used for your
-            course enrollment.
+            We could not find the student phone
+            number used for your course enrollment.
           </p>
 
           <Link
@@ -552,7 +330,6 @@ export default function PrivateCoursePage() {
             Go to My Courses
             <span>→</span>
           </Link>
-
         </main>
 
         <PrivateCourseStyles />
@@ -560,20 +337,18 @@ export default function PrivateCoursePage() {
     );
   }
 
-
   /* =======================================================
-     NO ACCESS
+     COURSE NOT FOUND / NO ACCESS
   ======================================================= */
 
   if (
+    !selectedCourse ||
     !access ||
     !access.course
   ) {
-
     return (
       <>
         <main className="dj-private-state">
-
           <div className="dj-private-state-icon">
             D
           </div>
@@ -587,12 +362,11 @@ export default function PrivateCoursePage() {
           </h1>
 
           <p>
-            This course is not available
-            for your current student account.
+            This course is not available for
+            your current student account.
           </p>
 
           <div className="dj-private-state-actions">
-
             <Link
               href="/my-courses"
               className="dj-private-primary"
@@ -607,9 +381,7 @@ export default function PrivateCoursePage() {
             >
               Explore Courses
             </Link>
-
           </div>
-
         </main>
 
         <PrivateCourseStyles />
@@ -617,19 +389,73 @@ export default function PrivateCoursePage() {
     );
   }
 
+  const course = access.course;
+
+  const materials =
+    Array.isArray(access.materials)
+      ? access.materials.map((material): Material => ({
+          _id: String(material.id),
+          courseSlug: material.courseSlug || slug,
+          title: material.title,
+          type: material.type,
+          description: material.description ?? undefined,
+          url: material.url ?? undefined,
+          storageId: material.storageId ?? undefined,
+          storageUrl: material.storageUrl ?? material.fileUrl ?? undefined,
+          fileUrl: material.fileUrl ?? material.storageUrl ?? undefined,
+          sortOrder: Number(material.sortOrder ?? 0),
+          status: String(material.status ?? "PUBLISHED").toLowerCase(),
+          createdAt: Number(material.createdAt ?? 0),
+          updatedAt: Number(material.updatedAt ?? 0),
+        }))
+      : [];
 
   /* =======================================================
-     COURSE
+     MATERIAL GROUPS
   ======================================================= */
 
-  const course =
-    access.course;
+  const liveClasses = materials.filter((item) =>
+    isLiveClass(item),
+  );
 
+  const recordedClasses = materials.filter((item) =>
+    isRecordedClass(item),
+  );
+
+  const pdfNotes = materials.filter((item) =>
+    isPdf(item),
+  );
+
+  const studyNotes = materials.filter((item) =>
+    isNote(item),
+  );
+
+  const resources = materials.filter((item) =>
+    isResource(item),
+  );
+
+  const otherMaterials = materials.filter(
+    (item) =>
+      !isLiveClass(item) &&
+      !isRecordedClass(item) &&
+      !isPdf(item) &&
+      !isNote(item) &&
+      !isResource(item),
+  );
+
+  /* =======================================================
+     LESSON COUNT
+  ======================================================= */
+
+  const lessonCount = Number(course.lessonCount || 0);
+
+  /* =======================================================
+     IMAGE
+  ======================================================= */
 
   const courseImage =
     course.image ||
     "https://images.unsplash.com/photo-1519681393784-d120267933ba?auto=format&fit=crop&w=1600&q=85";
-
 
   /* =======================================================
      RENDER
@@ -657,80 +483,138 @@ export default function PrivateCoursePage() {
               Back to My Courses
             </Link>
 
-
             <div className="dj-private-hero-grid">
 
-              {/* ===========================================
+              {/* -----------------------------------------
                   HERO COPY
-              =========================================== */}
+              ----------------------------------------- */}
 
               <div className="dj-private-hero-copy">
 
                 <div className="dj-private-eyebrow">
-                  PRIVATE LEARNING SPACE
+                  <span className="dj-private-dot" />
+                  PRIVATE LEARNING AREA
+                </div>
+
+                <div className="dj-private-category">
+                  {course.category ||
+                    "DIVYAJYOTI LEARNING"}
                 </div>
 
                 <h1>
                   {course.title}
                 </h1>
 
-                <p>
-                  {course.description}
+                <p className="dj-private-description">
+                  {course.description ||
+                    "Your private course area contains all the learning materials provided by the Divyajyoti team."}
                 </p>
-
 
                 <div className="dj-private-meta">
 
-                  <div>
-                    <span>
-                      LESSONS
-                    </span>
+                  <span>
+                    <b>{lessonCount}</b>
+                    Lessons
+                  </span>
 
-                    <strong>
-                      {course.lessonCount}
-                    </strong>
-                  </div>
+                  <span>
+                    <b>
+                      {course.duration ||
+                        "Flexible"}
+                    </b>
+                    Duration
+                  </span>
 
+                  <span>
+                    <b>
+                      {course.level ||
+                        "All Levels"}
+                    </b>
+                    Level
+                  </span>
 
-                  <div>
-                    <span>
-                      DURATION
-                    </span>
-
-                    <strong>
-                      {course.duration}
-                    </strong>
-                  </div>
-
-
-                  <div>
-                    <span>
-                      LEVEL
-                    </span>
-
-                    <strong>
-                      {course.level}
-                    </strong>
-                  </div>
+                  <span>
+                    <b>
+                      {course.instructor ||
+                        "Divyajyoti"}
+                    </b>
+                    Instructor
+                  </span>
 
                 </div>
 
               </div>
 
-
-              {/* ===========================================
+              {/* -----------------------------------------
                   HERO IMAGE
-              =========================================== */}
+              ----------------------------------------- */}
 
               <div className="dj-private-hero-image">
 
                 <img
                   src={courseImage}
-                  alt={
-                    course.title
-                  }
+                  alt={course.title}
                 />
 
+                <div className="dj-private-image-overlay" />
+
+                <div className="dj-private-image-card">
+
+                  <span>
+                    YOUR COURSE
+                  </span>
+
+                  <strong>
+                    Private access
+                  </strong>
+
+                  <small>
+                    Available after payment approval
+                  </small>
+
+                </div>
+
+              </div>
+
+            </div>
+          </div>
+        </section>
+
+
+        {/* =================================================
+            ACCESS BAR
+        ================================================= */}
+
+        <section className="dj-private-access-bar">
+
+          <div className="dj-private-container">
+
+            <div className="dj-private-access-inner">
+
+              <div className="dj-private-access-status">
+
+                <span className="dj-private-access-check">
+                  ✓
+                </span>
+
+                <div>
+                  <strong>
+                    Course access confirmed
+                  </strong>
+
+                  <small>
+                    You can access the materials
+                    published by the admin.
+                  </small>
+                </div>
+
+              </div>
+
+              <div className="dj-private-access-phone">
+                Student
+                <strong>
+                  {phone}
+                </strong>
               </div>
 
             </div>
@@ -741,7 +625,7 @@ export default function PrivateCoursePage() {
 
 
         {/* =================================================
-            CONTENT
+            MAIN CONTENT
         ================================================= */}
 
         <section className="dj-private-content">
@@ -750,309 +634,230 @@ export default function PrivateCoursePage() {
 
             <div className="dj-private-layout">
 
-              {/* =========================================
-                  MAIN CONTENT
-              ========================================= */}
+              {/* =================================================
+                  LEFT CONTENT
+              ================================================= */}
 
               <div className="dj-private-main">
 
+                {/* -----------------------------------------
+                    LIVE CLASS
+                ----------------------------------------- */}
 
-                {/* =======================================
-                    ACCESS CONFIRMED
-                ======================================= */}
+                {liveClasses.length > 0 && (
+                  <section className="dj-private-section">
 
-                <div className="dj-private-access">
+                    <div className="dj-private-section-head">
 
-                  <div className="dj-private-access-icon">
-                    ✓
-                  </div>
+                      <div>
+                        <span className="dj-private-section-label live">
+                          LIVE LEARNING
+                        </span>
 
-                  <div>
+                        <h2>
+                          Live classes
+                        </h2>
 
-                    <strong>
-                      Course access confirmed
-                    </strong>
+                        <p>
+                          Join your scheduled
+                          Google Meet class here.
+                        </p>
+                      </div>
 
-                    <span>
-                      This learning space is available
-                      to your approved enrollment.
+                      <span className="dj-private-count">
+                        {liveClasses.length}
+                      </span>
+
+                    </div>
+
+                    <div className="dj-private-material-list">
+
+                      {liveClasses.map(
+                        (material) => (
+                          <MaterialCard
+                            key={material._id}
+                            material={material}
+                          />
+                        ),
+                      )}
+
+                    </div>
+
+                  </section>
+                )}
+
+
+                {/* -----------------------------------------
+                    RECORDED CLASSES
+                ----------------------------------------- */}
+
+                <section className="dj-private-section">
+
+                  <div className="dj-private-section-head">
+
+                    <div>
+                      <span className="dj-private-section-label">
+                        RECORDED CLASSES
+                      </span>
+
+                      <h2>
+                        Learn at your own pace.
+                      </h2>
+
+                      <p>
+                        Watch the recorded classes
+                        uploaded by your instructor.
+                      </p>
+                    </div>
+
+                    <span className="dj-private-count">
+                      {recordedClasses.length}
                     </span>
 
                   </div>
 
-                </div>
-
-
-                {/* =======================================
-                    RECORDED CLASSES
-                ======================================= */}
-
-                <CourseSection
-                  eyebrow="RECORDED CLASSES"
-                  title="Learn at your own pace."
-                  description="Watch the recorded classes uploaded by your instructor."
-                  count={
-                    recordedClasses.length
-                  }
-                >
-
-                  {recordedClasses.length >
-                  0 ? (
-
-                    <div className="dj-video-list">
+                  {recordedClasses.length > 0 ? (
+                    <div className="dj-private-material-list">
 
                       {recordedClasses.map(
-                        (
-                          material,
-                        ) => (
-                          <RecordedClassCard
-                            key={
-                              material._id
-                            }
-                            material={
-                              material
-                            }
+                        (material) => (
+                          <MaterialCard
+                            key={material._id}
+                            material={material}
                           />
                         ),
                       )}
 
                     </div>
-
                   ) : (
-
                     <EmptyMaterials
                       title="No recorded classes yet"
-                      description="Your instructor has not published any recorded classes for this course yet."
+                      text="Your instructor has not published any recorded classes for this course yet."
                     />
-
                   )}
 
-                </CourseSection>
+                </section>
 
 
-                {/* =======================================
-                    LIVE CLASSES
-                ======================================= */}
+                {/* -----------------------------------------
+                    PDF NOTES
+                ----------------------------------------- */}
 
-                {liveClasses.length >
-                  0 && (
+                <section className="dj-private-section">
 
-                  <CourseSection
-                    eyebrow="LIVE CLASSES"
-                    title="Join your live sessions."
-                    description="Access upcoming live classes and Google Meet sessions."
-                    count={
-                      liveClasses.length
-                    }
-                  >
+                  <div className="dj-private-section-head">
 
-                    <div className="dj-material-list">
+                    <div>
+                      <span className="dj-private-section-label">
+                        COURSE NOTES
+                      </span>
 
-                      {liveClasses.map(
-                        (
-                          material,
-                        ) => (
-                          <MaterialCard
-                            key={
-                              material._id
-                            }
-                            material={
-                              material
-                            }
-                          />
-                        ),
-                      )}
+                      <h2>
+                        Notes & PDFs
+                      </h2>
 
+                      <p>
+                        Download or open the study
+                        documents provided by your instructor.
+                      </p>
                     </div>
 
-                  </CourseSection>
+                    <span className="dj-private-count">
+                      {pdfNotes.length +
+                        studyNotes.length}
+                    </span>
 
-                )}
+                  </div>
 
+                  {pdfNotes.length > 0 ||
+                  studyNotes.length > 0 ? (
+                    <div className="dj-private-material-list">
 
-                {/* =======================================
-                    PDFS
-                ======================================= */}
-
-                <CourseSection
-                  eyebrow="COURSE NOTES"
-                  title="Notes & PDFs"
-                  description="Download or open the study documents provided by your instructor."
-                  count={
-                    pdfNotes.length
-                  }
-                >
-
-                  {pdfNotes.length >
-                  0 ? (
-
-                    <div className="dj-material-list">
-
-                      {pdfNotes.map(
-                        (
-                          material,
-                        ) => (
-                          <MaterialCard
-                            key={
-                              material._id
-                            }
-                            material={
-                              material
-                            }
-                          />
-                        ),
-                      )}
+                      {[
+                        ...pdfNotes,
+                        ...studyNotes,
+                      ].map((material) => (
+                        <MaterialCard
+                          key={material._id}
+                          material={material}
+                        />
+                      ))}
 
                     </div>
-
                   ) : (
-
                     <EmptyMaterials
                       title="No notes available yet"
-                      description="Course notes and PDFs will appear here when the admin publishes them."
+                      text="Course notes and PDFs will appear here when the admin publishes them."
                     />
-
                   )}
 
-                </CourseSection>
+                </section>
 
 
-                {/* =======================================
-                    STUDY NOTES
-                ======================================= */}
+                {/* -----------------------------------------
+                    OTHER RESOURCES
+                ----------------------------------------- */}
 
-                {studyNotes.length >
-                  0 && (
+                {(resources.length > 0 ||
+                  otherMaterials.length > 0) && (
+                  <section className="dj-private-section">
 
-                  <CourseSection
-                    eyebrow="STUDY MATERIAL"
-                    title="Study notes."
-                    description="Additional notes and learning material from your instructor."
-                    count={
-                      studyNotes.length
-                    }
-                  >
+                    <div className="dj-private-section-head">
 
-                    <div className="dj-material-list">
+                      <div>
+                        <span className="dj-private-section-label">
+                          ADDITIONAL MATERIAL
+                        </span>
 
-                      {studyNotes.map(
-                        (
-                          material,
-                        ) => (
-                          <MaterialCard
-                            key={
-                              material._id
-                            }
-                            material={
-                              material
-                            }
-                          />
-                        ),
-                      )}
+                        <h2>
+                          Resources
+                        </h2>
+
+                        <p>
+                          Additional links, references
+                          and learning resources.
+                        </p>
+                      </div>
+
+                      <span className="dj-private-count">
+                        {resources.length +
+                          otherMaterials.length}
+                      </span>
 
                     </div>
 
-                  </CourseSection>
+                    <div className="dj-private-material-list">
 
-                )}
-
-
-                {/* =======================================
-                    RESOURCES
-                ======================================= */}
-
-                {resources.length >
-                  0 && (
-
-                  <CourseSection
-                    eyebrow="RESOURCES"
-                    title="Additional resources."
-                    description="Useful links and resources shared with you."
-                    count={
-                      resources.length
-                    }
-                  >
-
-                    <div className="dj-material-list">
-
-                      {resources.map(
-                        (
-                          material,
-                        ) => (
-                          <MaterialCard
-                            key={
-                              material._id
-                            }
-                            material={
-                              material
-                            }
-                          />
-                        ),
-                      )}
+                      {[
+                        ...resources,
+                        ...otherMaterials,
+                      ].map((material) => (
+                        <MaterialCard
+                          key={material._id}
+                          material={material}
+                        />
+                      ))}
 
                     </div>
 
-                  </CourseSection>
-
+                  </section>
                 )}
 
 
-                {/* =======================================
-                    OTHER MATERIALS
-                ======================================= */}
+                {/* -----------------------------------------
+                    EMPTY ENTIRE COURSE
+                ----------------------------------------- */}
 
-                {otherMaterials.length >
-                  0 && (
+                {materials.length === 0 && (
+                  <section className="dj-private-empty-large">
 
-                  <CourseSection
-                    eyebrow="COURSE CONTENT"
-                    title="Additional course material."
-                    description="Other resources published by your instructor."
-                    count={
-                      otherMaterials.length
-                    }
-                  >
-
-                    <div className="dj-material-list">
-
-                      {otherMaterials.map(
-                        (
-                          material,
-                        ) => (
-                          <MaterialCard
-                            key={
-                              material._id
-                            }
-                            material={
-                              material
-                            }
-                          />
-                        ),
-                      )}
-
-                    </div>
-
-                  </CourseSection>
-
-                )}
-
-
-                {/* =======================================
-                    EMPTY COURSE
-                ======================================= */}
-
-                {materials.length ===
-                  0 && (
-
-                  <section className="dj-private-ready">
-
-                    <div className="dj-private-ready-icon">
+                    <div className="dj-private-empty-icon">
                       +
                     </div>
 
-                    <div className="dj-private-eyebrow">
+                    <span>
                       COURSE CONTENT
-                    </div>
+                    </span>
 
                     <h2>
                       Your learning space is ready.
@@ -1065,70 +870,62 @@ export default function PrivateCoursePage() {
                     </p>
 
                   </section>
-
                 )}
 
               </div>
 
 
-              {/* =========================================
+              {/* =================================================
                   SIDEBAR
-              ========================================= */}
+              ================================================= */}
 
               <aside className="dj-private-sidebar">
 
-                <div className="dj-private-overview">
+                <div className="dj-private-sidebar-card">
 
-                  <div className="dj-private-sidebar-eyebrow">
+                  <span className="dj-private-sidebar-label">
                     COURSE OVERVIEW
-                  </div>
+                  </span>
 
-                  <h2>
+                  <h3>
                     {course.title}
-                  </h2>
+                  </h3>
 
+                  <div className="dj-private-sidebar-divider" />
 
-                  <div className="dj-private-overview-row">
-
+                  <div className="dj-private-sidebar-stat">
                     <span>
                       Lessons
                     </span>
 
                     <strong>
-                      {course.lessonCount}
+                      {lessonCount}
                     </strong>
-
                   </div>
 
-
-                  <div className="dj-private-overview-row">
-
+                  <div className="dj-private-sidebar-stat">
                     <span>
                       Duration
                     </span>
 
                     <strong>
-                      {course.duration}
+                      {course.duration ||
+                        "Flexible"}
                     </strong>
-
                   </div>
 
-
-                  <div className="dj-private-overview-row">
-
+                  <div className="dj-private-sidebar-stat">
                     <span>
                       Level
                     </span>
 
                     <strong>
-                      {course.level}
+                      {course.level ||
+                        "All Levels"}
                     </strong>
-
                   </div>
 
-
-                  <div className="dj-private-overview-row">
-
+                  <div className="dj-private-sidebar-stat">
                     <span>
                       Materials
                     </span>
@@ -1136,31 +933,28 @@ export default function PrivateCoursePage() {
                     <strong>
                       {materials.length}
                     </strong>
-
                   </div>
 
                 </div>
 
 
-                <div className="dj-private-help">
+                <div className="dj-private-sidebar-note">
 
-                  <div className="dj-private-help-mark">
+                  <div className="dj-private-sidebar-note-icon">
                     D
                   </div>
 
-                  <h3>
+                  <strong>
                     Need help?
-                  </h3>
+                  </strong>
 
                   <p>
                     If you cannot access a class,
-                    PDF or Google Meet link,
-                    contact the Divyajyoti team.
+                    PDF or Google Meet link, contact
+                    the Divyajyoti team.
                   </p>
 
-                  <Link
-                    href="/contact"
-                  >
+                  <Link href="/contact">
                     Contact support
                     <span>→</span>
                   </Link>
@@ -1170,9 +964,10 @@ export default function PrivateCoursePage() {
 
                 <Link
                   href="/my-courses"
-                  className="dj-private-back-card"
+                  className="dj-private-sidebar-back"
                 >
-                  ← Back to My Courses
+                  <span>←</span>
+                  Back to My Courses
                 </Link>
 
               </aside>
@@ -1192,198 +987,7 @@ export default function PrivateCoursePage() {
 
 
 /* =========================================================
-   COURSE SECTION
-========================================================= */
-
-function CourseSection({
-  eyebrow,
-  title,
-  description,
-  count,
-  children,
-}: {
-  eyebrow: string;
-
-  title: string;
-
-  description: string;
-
-  count: number;
-
-  children: React.ReactNode;
-}) {
-
-  return (
-    <section className="dj-private-section">
-
-      <div className="dj-private-section-heading">
-
-        <div>
-
-          <div className="dj-private-eyebrow">
-            {eyebrow}
-          </div>
-
-          <h2>
-            {title}
-          </h2>
-
-          <p>
-            {description}
-          </p>
-
-        </div>
-
-
-        <div className="dj-private-count">
-          {count}
-        </div>
-
-      </div>
-
-
-      {children}
-
-    </section>
-  );
-}
-
-
-/* =========================================================
-   RECORDED CLASS CARD
-========================================================= */
-
-function RecordedClassCard({
-  material,
-}: {
-  material: Material;
-}) {
-
-  /*
-   * Uploaded Convex Storage video
-   */
-  const videoUrl =
-    material.storageUrl ||
-    null;
-
-
-  /*
-   * External video
-   *
-   * Example:
-   * YouTube
-   * Google Drive
-   * Vimeo
-   */
-  const externalUrl =
-    material.url ||
-    null;
-
-
-  return (
-    <article className="dj-recorded-card">
-
-      {/* ===============================================
-          VIDEO
-      =============================================== */}
-
-      {videoUrl ? (
-
-        <div className="dj-video-player">
-
-          <video
-            controls
-            preload="metadata"
-            playsInline
-            src={
-              videoUrl
-            }
-          />
-
-        </div>
-
-      ) : externalUrl ? (
-
-        <div className="dj-external-video">
-
-          <div className="dj-external-video-icon">
-            ▶
-          </div>
-
-          <div>
-
-            <span>
-              EXTERNAL VIDEO
-            </span>
-
-            <h3>
-              Watch recorded class
-            </h3>
-
-          </div>
-
-          <a
-            href={
-              externalUrl
-            }
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Open video
-            <span>→</span>
-          </a>
-
-        </div>
-
-      ) : (
-
-        <div className="dj-video-unavailable">
-
-          <div>
-            VIDEO
-          </div>
-
-          <p>
-            The recorded class file
-            is not available yet.
-          </p>
-
-        </div>
-
-      )}
-
-
-      {/* ===============================================
-          VIDEO INFORMATION
-      =============================================== */}
-
-      <div className="dj-recorded-copy">
-
-        <div className="dj-private-material-label">
-          RECORDED CLASS
-        </div>
-
-        <h3>
-          {material.title}
-        </h3>
-
-        {material.description && (
-
-          <p>
-            {material.description}
-          </p>
-
-        )}
-
-      </div>
-
-    </article>
-  );
-}
-
-
-/* =========================================================
-   NORMAL MATERIAL CARD
+   MATERIAL CARD
 ========================================================= */
 
 function MaterialCard({
@@ -1391,130 +995,111 @@ function MaterialCard({
 }: {
   material: Material;
 }) {
-
-  const storageUrl =
-    material.storageUrl ||
-    null;
-
-  const externalUrl =
-    material.url ||
-    null;
-
-
-  /*
-   * For uploaded PDFs or files,
-   * prefer Convex Storage URL.
-   */
-  const href =
-    storageUrl ||
-    externalUrl ||
-    "#";
-
-
-  const pdf =
-    isPdf(
-      material,
-    );
-
-
-  const live =
-    isLiveClass(
-      material,
-    );
-
+  const href = materialHref(material);
+  const live = isLiveClass(material);
+  const recorded = isRecordedClass(material);
+  const pdf = isPdf(material);
 
   return (
-    <article className="dj-material-card">
-
+    <article
+      className={`dj-private-material ${
+        live ? "dj-private-material-live" : ""
+      }`}
+    >
       <div
-        className={
-          pdf
-            ? "dj-material-icon pdf"
-            : live
-            ? "dj-material-icon live"
-            : "dj-material-icon"
-        }
+        className={`dj-private-material-icon ${
+          live ? "dj-private-live-icon" : ""
+        }`}
       >
-
-        {pdf
-          ? "PDF"
-          : live
-          ? "LIVE"
-          : "↗"}
-
+        {materialIcon(material)}
       </div>
 
+      <div className="dj-private-material-body">
+        <div className="dj-private-material-label">
+          {materialLabel(material)}
+        </div>
 
-      <div className="dj-material-info">
-
-        <span>
-          {materialLabel(
-            material,
-          )}
-        </span>
-
-        <h3>
-          {material.title}
-        </h3>
+        <h3>{material.title}</h3>
 
         {material.description && (
-
-          <p>
-            {
-              material.description
-            }
-          </p>
-
+          <p>{material.description}</p>
         )}
 
+        {live && (
+          <div className="dj-private-meet-note">
+            Google Meet
+          </div>
+        )}
+
+        {recorded && href && (
+          <div className="dj-private-video-frame">
+            <video
+              controls
+              preload="metadata"
+              playsInline
+            >
+              <source src={href} type="video/mp4" />
+              Your browser does not support video playback.
+            </video>
+          </div>
+        )}
+
+        {pdf && href && (
+          <div className="dj-private-pdf-frame">
+            <iframe
+              src={href}
+              title={material.title}
+            />
+          </div>
+        )}
       </div>
 
-
-      {href !== "#" && (
-
-        <a
-          href={href}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="dj-material-open"
-        >
-
-          {pdf
-            ? "Open PDF"
-            : live
-            ? "Join class"
-            : "Open"}
-
-          <span>
-            →
+      <div className="dj-private-material-action">
+        {href ? (
+          <a
+            href={href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className={
+              live
+                ? "dj-private-live-button"
+                : "dj-private-open-button"
+            }
+          >
+            {live
+              ? "Join Live Class"
+              : pdf
+                ? "Open PDF"
+                : recorded
+                  ? "Open Video"
+                  : "Open Resource"}
+            <span>↗</span>
+          </a>
+        ) : (
+          <span className="dj-private-unavailable">
+            File unavailable
           </span>
-
-        </a>
-
-      )}
-
+        )}
+      </div>
     </article>
   );
 }
 
-
 /* =========================================================
-   EMPTY MATERIALS
+   EMPTY MATERIAL
 ========================================================= */
 
 function EmptyMaterials({
   title,
-  description,
+  text,
 }: {
   title: string;
-
-  description: string;
+  text: string;
 }) {
-
   return (
     <div className="dj-private-empty">
 
-      <div className="dj-private-empty-icon">
+      <div className="dj-private-empty-small-icon">
         +
       </div>
 
@@ -1523,7 +1108,7 @@ function EmptyMaterials({
       </h3>
 
       <p>
-        {description}
+        {text}
       </p>
 
     </div>
@@ -1532,70 +1117,71 @@ function EmptyMaterials({
 
 
 /* =========================================================
-   STYLES
+   PAGE STYLES
 ========================================================= */
 
 function PrivateCourseStyles() {
-
   return (
     <style jsx global>{`
 
-      /* ===================================================
-         BASE
-      =================================================== */
+      /* =====================================================
+         PAGE
+      ===================================================== */
 
       .dj-private-page {
         min-height: 100vh;
-        background: #f7f3eb;
-        color: #102039;
+        background: #f8f5ee;
+        color: #142238;
       }
 
       .dj-private-container {
         width: min(
-          1420px,
+          1180px,
           calc(100% - 48px)
         );
+
         margin: 0 auto;
       }
 
 
-      /* ===================================================
+      /* =====================================================
          HERO
-      =================================================== */
+      ===================================================== */
 
       .dj-private-hero {
         position: relative;
         overflow: hidden;
-        padding:
-          54px 0 72px;
+
         background:
-          radial-gradient(
-            circle at 75% 20%,
-            rgba(
-              211,
-              161,
-              82,
-              0.15
-            ),
-            transparent 32%
-          ),
-          #f7f3eb;
+          linear-gradient(
+            135deg,
+            #0b213a,
+            #102f50
+          );
+
+        color: white;
+
+        padding: 55px 0 65px;
       }
 
       .dj-private-hero-glow {
         position: absolute;
-        width: 500px;
-        height: 500px;
+
+        width: 550px;
+        height: 550px;
+
         right: -180px;
-        top: -180px;
+        top: -240px;
+
         border-radius: 50%;
+
         background:
-          rgba(
-            211,
-            161,
-            82,
-            0.08
+          radial-gradient(
+            circle,
+            rgba(220,174,79,.18),
+            transparent 68%
           );
+
         pointer-events: none;
       }
 
@@ -1603,917 +1189,1203 @@ function PrivateCourseStyles() {
         display: inline-flex;
         align-items: center;
         gap: 8px;
-        margin-bottom: 42px;
-        color: #68768b;
-        text-decoration: none;
-        font-size: 14px;
+
+        color: #b9c6d5;
+
+        font-size: 12px;
         font-weight: 700;
+
+        text-decoration: none;
+
+        margin-bottom: 42px;
+
+        transition: .2s ease;
       }
 
       .dj-private-back:hover {
-        color: #102039;
+        color: white;
+        transform: translateX(-2px);
       }
-
 
       .dj-private-hero-grid {
         display: grid;
+
         grid-template-columns:
           minmax(0, 1fr)
-          430px;
-        gap: 72px;
+          390px;
+
+        gap: 60px;
+
         align-items: center;
       }
 
-
-      .dj-private-hero-copy {
-        max-width: 760px;
-      }
-
-
       .dj-private-eyebrow {
-        margin-bottom: 14px;
-        color: #b87925;
-        font-size: 11px;
-        font-weight: 900;
-        letter-spacing: 2.5px;
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+
+        color: #dfbd80;
+
+        font-size: 10px;
+        font-weight: 800;
+
+        letter-spacing: .19em;
+
+        margin-bottom: 20px;
       }
 
+      .dj-private-dot {
+        width: 7px;
+        height: 7px;
 
-      .dj-private-hero-copy h1 {
+        border-radius: 50%;
+
+        background: #73b58a;
+
+        box-shadow:
+          0 0 0 5px
+          rgba(115,181,138,.12);
+      }
+
+      .dj-private-category {
+        color: #92a6bd;
+
+        font-size: 10px;
+        font-weight: 800;
+
+        letter-spacing: .18em;
+
+        text-transform: uppercase;
+
+        margin-bottom: 12px;
+      }
+
+      .dj-private-hero h1 {
+        max-width: 750px;
+
         margin: 0;
-        max-width: 760px;
-        color: #102039;
+
         font-family:
           Georgia,
           "Times New Roman",
           serif;
+
         font-size:
           clamp(
-            48px,
-            5vw,
-            76px
+            44px,
+            5.4vw,
+            72px
           );
+
+        line-height: .99;
+
         font-weight: 500;
-        line-height: 1.03;
-        letter-spacing: -2px;
+
+        letter-spacing: -.04em;
       }
 
+      .dj-private-description {
+        max-width: 650px;
 
-      .dj-private-hero-copy p {
-        max-width: 680px;
-        margin: 24px 0 0;
-        color: #728198;
-        font-size: 17px;
-        line-height: 1.8;
+        margin: 22px 0 0;
+
+        color: #c2ccd8;
+
+        font-size: 15px;
+
+        line-height: 1.75;
       }
-
 
       .dj-private-meta {
         display: flex;
         flex-wrap: wrap;
-        gap: 0;
-        margin-top: 36px;
-        border-top: 1px solid #ded7ca;
-        border-bottom: 1px solid #ded7ca;
+
+        gap: 10px;
+
+        margin-top: 28px;
       }
-
-
-      .dj-private-meta > div {
-        min-width: 150px;
-        padding:
-          18px 30px 18px 0;
-        margin-right: 30px;
-        border-right: 1px solid #ded7ca;
-      }
-
-
-      .dj-private-meta > div:last-child {
-        border-right: 0;
-      }
-
 
       .dj-private-meta span {
-        display: block;
-        margin-bottom: 6px;
-        color: #8a95a6;
-        font-size: 10px;
-        font-weight: 800;
-        letter-spacing: 1.5px;
-      }
+        min-width: 105px;
 
+        padding: 12px 14px;
 
-      .dj-private-meta strong {
-        color: #16243a;
-        font-size: 14px;
-        font-weight: 800;
+        border:
+          1px solid
+          rgba(255,255,255,.12);
+
+        background:
+          rgba(255,255,255,.045);
+
+        color: #94a4b7;
+
+        font-size: 9px;
+
         text-transform: uppercase;
+
+        letter-spacing: .08em;
       }
 
+      .dj-private-meta b {
+        display: block;
+
+        color: white;
+
+        font-size: 12px;
+
+        text-transform: none;
+
+        letter-spacing: 0;
+
+        margin-bottom: 4px;
+
+        max-width: 150px;
+
+        white-space: nowrap;
+
+        overflow: hidden;
+
+        text-overflow: ellipsis;
+      }
+
+
+      /* =====================================================
+         HERO IMAGE
+      ===================================================== */
 
       .dj-private-hero-image {
-        height: 470px;
-        overflow: hidden;
-        background: #ddd5c7;
-      }
+        position: relative;
 
+        height: 400px;
+
+        overflow: hidden;
+
+        border-radius:
+          24px
+          24px
+          80px
+          24px;
+
+        background: #1b2b3d;
+
+        box-shadow:
+          0 28px 70px
+          rgba(0,0,0,.25);
+      }
 
       .dj-private-hero-image img {
-        display: block;
         width: 100%;
         height: 100%;
+
+        display: block;
+
         object-fit: cover;
+
+        opacity: .82;
+
+        filter:
+          saturate(.78)
+          contrast(.98);
+      }
+
+      .dj-private-image-overlay {
+        position: absolute;
+        inset: 0;
+
+        background:
+          linear-gradient(
+            180deg,
+            transparent 35%,
+            rgba(5,15,27,.75)
+          );
+      }
+
+      .dj-private-image-card {
+        position: absolute;
+
+        left: 20px;
+        right: 20px;
+        bottom: 20px;
+
+        padding: 15px 17px;
+
+        border:
+          1px solid
+          rgba(255,255,255,.14);
+
+        background:
+          rgba(10,26,45,.83);
+
+        backdrop-filter: blur(12px);
+      }
+
+      .dj-private-image-card span {
+        display: block;
+
+        color: #dfbd80;
+
+        font-size: 8px;
+
+        font-weight: 800;
+
+        letter-spacing: .17em;
+      }
+
+      .dj-private-image-card strong {
+        display: block;
+
+        margin-top: 5px;
+
+        color: white;
+
+        font-family:
+          Georgia,
+          serif;
+
+        font-size: 19px;
+
+        font-weight: 500;
+      }
+
+      .dj-private-image-card small {
+        display: block;
+
+        margin-top: 4px;
+
+        color: #aab8c8;
+
+        font-size: 9px;
       }
 
 
-      /* ===================================================
+      /* =====================================================
+         ACCESS BAR
+      ===================================================== */
+
+      .dj-private-access-bar {
+        background: white;
+
+        border-bottom:
+          1px solid #e7e0d5;
+      }
+
+      .dj-private-access-inner {
+        min-height: 78px;
+
+        display: flex;
+
+        align-items: center;
+
+        justify-content: space-between;
+
+        gap: 20px;
+      }
+
+      .dj-private-access-status {
+        display: flex;
+        align-items: center;
+
+        gap: 11px;
+      }
+
+      .dj-private-access-check {
+        width: 31px;
+        height: 31px;
+
+        display: grid;
+        place-items: center;
+
+        border-radius: 50%;
+
+        background: #edf8f1;
+
+        color: #258052;
+
+        font-size: 14px;
+        font-weight: 900;
+      }
+
+      .dj-private-access-status strong {
+        display: block;
+
+        font-size: 12px;
+      }
+
+      .dj-private-access-status small {
+        display: block;
+
+        margin-top: 3px;
+
+        color: #8190a1;
+
+        font-size: 9px;
+      }
+
+      .dj-private-access-phone {
+        display: flex;
+        align-items: center;
+        gap: 9px;
+
+        color: #8793a3;
+
+        font-size: 10px;
+      }
+
+      .dj-private-access-phone strong {
+        color: #17263b;
+
+        font-size: 11px;
+      }
+
+
+      /* =====================================================
          CONTENT
-      =================================================== */
+      ===================================================== */
 
       .dj-private-content {
-        padding:
-          70px 0 100px;
+        padding: 65px 0 100px;
       }
-
 
       .dj-private-layout {
         display: grid;
+
         grid-template-columns:
           minmax(0, 1fr)
-          360px;
-        gap: 58px;
+          285px;
+
+        gap: 45px;
+
         align-items: start;
       }
-
 
       .dj-private-main {
         min-width: 0;
       }
 
 
-      /* ===================================================
-         ACCESS
-      =================================================== */
-
-      .dj-private-access {
-        display: flex;
-        align-items: center;
-        gap: 16px;
-        margin-bottom: 66px;
-        padding: 20px 22px;
-        border: 1px solid #dfd6c7;
-        background: #fffdf9;
-      }
-
-
-      .dj-private-access-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 36px;
-        height: 36px;
-        flex: 0 0 36px;
-        border-radius: 50%;
-        background: #102039;
-        color: #dcb263;
-        font-size: 16px;
-        font-weight: 900;
-      }
-
-
-      .dj-private-access strong {
-        display: block;
-        margin-bottom: 3px;
-        color: #102039;
-        font-size: 14px;
-      }
-
-
-      .dj-private-access span {
-        color: #78869a;
-        font-size: 13px;
-      }
-
-
-      /* ===================================================
-         SECTION
-      =================================================== */
+      /* =====================================================
+         SECTIONS
+      ===================================================== */
 
       .dj-private-section {
-        margin-bottom: 76px;
+        margin-bottom: 55px;
       }
 
-
-      .dj-private-section-heading {
+      .dj-private-section-head {
         display: flex;
+
         align-items: flex-end;
+
         justify-content: space-between;
-        gap: 24px;
-        margin-bottom: 26px;
+
+        gap: 20px;
+
+        margin-bottom: 22px;
       }
 
+      .dj-private-section-label {
+        display: block;
 
-      .dj-private-section-heading h2 {
+        color: #ad7933;
+
+        font-size: 9px;
+
+        font-weight: 850;
+
+        letter-spacing: .17em;
+
+        margin-bottom: 8px;
+      }
+
+      .dj-private-section-label.live {
+        color: #258052;
+      }
+
+      .dj-private-section-head h2 {
         margin: 0;
-        color: #102039;
+
         font-family:
           Georgia,
           "Times New Roman",
           serif;
-        font-size:
-          clamp(
-            36px,
-            4vw,
-            52px
-          );
+
+        font-size: 35px;
+
+        line-height: 1.05;
+
         font-weight: 500;
-        line-height: 1.08;
-        letter-spacing: -1px;
+
+        letter-spacing: -.025em;
       }
 
+      .dj-private-section-head p {
+        max-width: 580px;
 
-      .dj-private-section-heading p {
-        max-width: 680px;
-        margin: 10px 0 0;
-        color: #718096;
-        font-size: 15px;
-        line-height: 1.7;
+        margin: 9px 0 0;
+
+        color: #78879a;
+
+        font-size: 12px;
+
+        line-height: 1.6;
       }
-
 
       .dj-private-count {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 44px;
-        height: 44px;
-        flex: 0 0 44px;
-        border: 1px solid #ded5c6;
-        border-radius: 50%;
-        color: #9c671d;
-        background: #fffdf9;
-        font-size: 12px;
-        font-weight: 900;
-      }
+        min-width: 34px;
+        height: 34px;
 
-
-      /* ===================================================
-         VIDEO
-      =================================================== */
-
-      .dj-video-list {
         display: grid;
-        gap: 24px;
-      }
+        place-items: center;
 
+        border: 1px solid #e2dbd0;
 
-      .dj-recorded-card {
-        overflow: hidden;
-        border: 1px solid #ded7cb;
-        background: #fff;
-      }
+        border-radius: 50%;
 
+        background: white;
 
-      .dj-video-player {
-        width: 100%;
-        aspect-ratio: 16 / 9;
-        background: #081526;
-      }
+        color: #8c6a3d;
 
-
-      .dj-video-player video {
-        display: block;
-        width: 100%;
-        height: 100%;
-        object-fit: contain;
-        background: #081526;
-      }
-
-
-      .dj-recorded-copy {
-        padding:
-          25px 28px 29px;
-      }
-
-
-      .dj-private-material-label {
-        margin-bottom: 8px;
-        color: #b87925;
         font-size: 10px;
-        font-weight: 900;
-        letter-spacing: 2px;
+
+        font-weight: 800;
       }
 
 
-      .dj-recorded-copy h3 {
-        margin: 0;
-        color: #102039;
-        font-family:
-          Georgia,
-          "Times New Roman",
-          serif;
-        font-size: 26px;
-        font-weight: 500;
-      }
+      /* =====================================================
+         MATERIAL LIST
+      ===================================================== */
 
-
-      .dj-recorded-copy p {
-        margin: 10px 0 0;
-        color: #718096;
-        font-size: 14px;
-        line-height: 1.7;
-      }
-
-
-      /* ===================================================
-         EXTERNAL VIDEO
-      =================================================== */
-
-      .dj-external-video {
+      .dj-private-material-list {
         display: flex;
-        align-items: center;
-        gap: 18px;
-        padding: 26px;
-        background: #102039;
-        color: white;
+        flex-direction: column;
+
+        gap: 10px;
       }
 
-
-      .dj-external-video-icon {
+      .dj-private-material {
         display: flex;
+
         align-items: center;
-        justify-content: center;
+
+        gap: 15px;
+
+        padding: 16px;
+
+        background: white;
+
+        border:
+          1px solid
+          #e5ded2;
+
+        transition:
+          transform .2s ease,
+          box-shadow .2s ease,
+          border-color .2s ease;
+      }
+
+      .dj-private-material:hover {
+        transform: translateY(-2px);
+
+        border-color: #d5c8b6;
+
+        box-shadow:
+          0 15px 35px
+          rgba(20,34,56,.07);
+      }
+
+      .dj-private-material-live {
+        border-color: #cfe3d7;
+
+        background:
+          linear-gradient(
+            90deg,
+            #fbfffc,
+            white
+          );
+      }
+
+      .dj-private-material-icon {
         width: 52px;
         height: 52px;
+
         flex: 0 0 52px;
-        border-radius: 50%;
-        background: #dcb263;
-        color: #102039;
-        font-size: 16px;
-      }
 
-
-      .dj-external-video > div:nth-child(2) {
-        flex: 1;
-      }
-
-
-      .dj-external-video span {
-        display: block;
-        margin-bottom: 5px;
-        color: #dcb263;
-        font-size: 9px;
-        font-weight: 900;
-        letter-spacing: 1.7px;
-      }
-
-
-      .dj-external-video h3 {
-        margin: 0;
-        font-family:
-          Georgia,
-          "Times New Roman",
-          serif;
-        font-size: 23px;
-        font-weight: 500;
-      }
-
-
-      .dj-external-video a {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
-        color: #fff;
-        font-size: 13px;
-        font-weight: 800;
-        text-decoration: none;
-      }
-
-
-      .dj-video-unavailable {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        min-height: 250px;
-        background: #101c2e;
-        color: white;
-        text-align: center;
-      }
-
-
-      .dj-video-unavailable div {
-        margin-bottom: 10px;
-        color: #dcb263;
-        font-size: 11px;
-        font-weight: 900;
-        letter-spacing: 2px;
-      }
-
-
-      .dj-video-unavailable p {
-        margin: 0;
-        color: #aab5c4;
-        font-size: 13px;
-      }
-
-
-      /* ===================================================
-         MATERIALS
-      =================================================== */
-
-      .dj-material-list {
         display: grid;
-        gap: 12px;
-      }
+        place-items: center;
 
+        background: #f7efe1;
 
-      .dj-material-card {
-        display: flex;
-        align-items: center;
-        gap: 18px;
-        padding: 20px 22px;
-        border: 1px solid #ded7cb;
-        background: #fff;
-        transition:
-          transform 0.2s ease,
-          border-color 0.2s ease;
-      }
+        color: #a87331;
 
+        font-size: 9px;
 
-      .dj-material-card:hover {
-        transform: translateY(-2px);
-        border-color: #c8b79d;
-      }
-
-
-      .dj-material-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 50px;
-        height: 50px;
-        flex: 0 0 50px;
-        background: #f4ecdc;
-        color: #a86f20;
-        font-size: 10px;
         font-weight: 900;
-        letter-spacing: 1px;
+
+        letter-spacing: .04em;
       }
 
+      .dj-private-live-icon {
+        background: #edf8f1;
 
-      .dj-material-icon.pdf {
-        background: #f4e7d7;
-        color: #9d5c19;
+        color: #258052;
       }
 
-
-      .dj-material-icon.live {
-        background: #102039;
-        color: #dcb263;
-      }
-
-
-      .dj-material-info {
+      .dj-private-material-body {
         min-width: 0;
         flex: 1;
       }
 
+      .dj-private-material-label {
+        color: #b07d35;
 
-      .dj-material-info > span {
-        display: block;
-        margin-bottom: 5px;
-        color: #a96f20;
-        font-size: 9px;
-        font-weight: 900;
-        letter-spacing: 1.6px;
+        font-size: 8px;
+
+        font-weight: 850;
+
+        letter-spacing: .15em;
       }
 
+      .dj-private-material-live
+      .dj-private-material-label {
+        color: #258052;
+      }
 
-      .dj-material-info h3 {
-        margin: 0;
-        color: #102039;
+      .dj-private-material-body h3 {
+        margin: 5px 0 0;
+
+        color: #16263c;
+
         font-size: 16px;
+
+        font-weight: 750;
+      }
+
+      .dj-private-material-body p {
+        max-width: 620px;
+
+        margin: 5px 0 0;
+
+        color: #78879a;
+
+        font-size: 11px;
+
+        line-height: 1.55;
+      }
+
+      .dj-private-meet-note {
+        display: inline-flex;
+
+        margin-top: 8px;
+
+        padding: 4px 7px;
+
+        border-radius: 999px;
+
+        background: #edf8f1;
+
+        color: #28724d;
+
+        font-size: 8px;
+
         font-weight: 800;
       }
 
-
-      .dj-material-info p {
-        margin: 5px 0 0;
-        color: #7a8799;
-        font-size: 13px;
-        line-height: 1.6;
-      }
-
-
-      .dj-material-open {
-        display: inline-flex;
-        align-items: center;
-        gap: 8px;
+      .dj-private-material-action {
         flex: 0 0 auto;
-        color: #102039;
-        font-size: 12px;
-        font-weight: 900;
+      }
+
+      .dj-private-open-button,
+      .dj-private-live-button {
+        display: inline-flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        gap: 7px;
+
+        padding: 10px 13px;
+
         text-decoration: none;
-      }
 
-
-      .dj-material-open:hover {
-        color: #b87925;
-      }
-
-
-      /* ===================================================
-         EMPTY
-      =================================================== */
-
-      .dj-private-empty {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        min-height: 235px;
-        padding: 40px;
-        border: 1px dashed #d8cebd;
-        background: #fffdf9;
-        text-align: center;
-      }
-
-
-      .dj-private-empty-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 48px;
-        height: 48px;
-        margin-bottom: 18px;
-        border-radius: 13px;
-        background: #f7edd9;
-        color: #b87925;
-        font-size: 25px;
-      }
-
-
-      .dj-private-empty h3 {
-        margin: 0;
-        color: #102039;
-        font-family:
-          Georgia,
-          "Times New Roman",
-          serif;
-        font-size: 25px;
-        font-weight: 500;
-      }
-
-
-      .dj-private-empty p {
-        max-width: 540px;
-        margin: 9px 0 0;
-        color: #7b889b;
-        font-size: 13px;
-        line-height: 1.7;
-      }
-
-
-      /* ===================================================
-         READY
-      =================================================== */
-
-      .dj-private-ready {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        min-height: 360px;
-        padding: 60px;
-        border: 1px solid #ded7cb;
-        background: #fff;
-        text-align: center;
-      }
-
-
-      .dj-private-ready-icon {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 60px;
-        height: 60px;
-        margin-bottom: 26px;
-        border-radius: 14px;
-        background: #f6ead5;
-        color: #b87925;
-        font-size: 30px;
-      }
-
-
-      .dj-private-ready h2 {
-        margin: 0;
-        color: #102039;
-        font-family:
-          Georgia,
-          "Times New Roman",
-          serif;
-        font-size: 38px;
-        font-weight: 500;
-      }
-
-
-      .dj-private-ready p {
-        max-width: 650px;
-        margin: 14px 0 0;
-        color: #748197;
-        font-size: 15px;
-        line-height: 1.7;
-      }
-
-
-      /* ===================================================
-         SIDEBAR
-      =================================================== */
-
-      .dj-private-sidebar {
-        position: sticky;
-        top: 105px;
-      }
-
-
-      .dj-private-overview {
-        border: 1px solid #ddd5c8;
-        background: #fff;
-      }
-
-
-      .dj-private-sidebar-eyebrow {
-        padding:
-          27px 28px 0;
-        color: #b87925;
         font-size: 10px;
-        font-weight: 900;
-        letter-spacing: 2px;
+
+        font-weight: 800;
+
+        white-space: nowrap;
+
+        transition: .2s ease;
       }
 
+      .dj-private-open-button {
+        background: #101e32;
 
-      .dj-private-overview h2 {
-        margin: 14px 28px 25px;
-        color: #102039;
-        font-family:
-          Georgia,
-          "Times New Roman",
-          serif;
-        font-size: 30px;
-        font-weight: 500;
-        line-height: 1.15;
-      }
-
-
-      .dj-private-overview-row {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding:
-          16px 28px;
-        border-top: 1px solid #e7e0d5;
-      }
-
-
-      .dj-private-overview-row span {
-        color: #8793a4;
-        font-size: 12px;
-      }
-
-
-      .dj-private-overview-row strong {
-        color: #19263a;
-        font-size: 12px;
-        font-weight: 900;
-        text-transform: uppercase;
-      }
-
-
-      /* ===================================================
-         HELP
-      =================================================== */
-
-      .dj-private-help {
-        margin-top: 16px;
-        padding: 28px;
-        background: #102039;
         color: white;
       }
 
+      .dj-private-open-button:hover {
+        background: #1b304b;
+      }
 
-      .dj-private-help-mark {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 40px;
-        height: 40px;
-        margin-bottom: 22px;
-        border-radius: 50%;
-        background: #dcb263;
-        color: #102039;
-        font-family:
-          Georgia,
-          serif;
-        font-size: 20px;
+      .dj-private-live-button {
+        background: #23764c;
+
+        color: white;
+      }
+
+      .dj-private-live-button:hover {
+        background: #1b6340;
+      }
+
+      .dj-private-unavailable {
+        color: #a2aab4;
+
+        font-size: 9px;
       }
 
 
-      .dj-private-help h3 {
+      .dj-private-video-frame {
+        margin-top: 18px;
+        width: 100%;
+        overflow: hidden;
+        border-radius: 12px;
+        background: #07182d;
+      }
+
+      .dj-private-video-frame video {
+        display: block;
+        width: 100%;
+        max-height: 520px;
+        background: #07182d;
+      }
+
+      .dj-private-pdf-frame {
+        margin-top: 18px;
+        width: 100%;
+        height: 650px;
+        overflow: hidden;
+        border: 1px solid #e5ded2;
+        border-radius: 10px;
+        background: white;
+      }
+
+      .dj-private-pdf-frame iframe {
+        width: 100%;
+        height: 100%;
+        display: block;
+        border: 0;
+      }
+
+      /* =====================================================
+         EMPTY STATES
+      ===================================================== */
+
+      .dj-private-empty {
+        padding: 42px 25px;
+
+        text-align: center;
+
+        border:
+          1px dashed
+          #d9d1c5;
+
+        background:
+          rgba(255,255,255,.6);
+      }
+
+      .dj-private-empty-small-icon {
+        width: 38px;
+        height: 38px;
+
+        margin: 0 auto 13px;
+
+        display: grid;
+        place-items: center;
+
+        border-radius: 11px;
+
+        background: #f7edda;
+
+        color: #b87820;
+
+        font-size: 22px;
+      }
+
+      .dj-private-empty h3 {
         margin: 0;
+
         font-family:
           Georgia,
-          "Times New Roman",
           serif;
-        font-size: 23px;
+
+        font-size: 22px;
+
         font-weight: 500;
       }
 
+      .dj-private-empty p {
+        max-width: 480px;
 
-      .dj-private-help p {
-        margin: 9px 0 22px;
-        color: #aeb9c8;
-        font-size: 13px;
+        margin: 8px auto 0;
+
+        color: #7c8998;
+
+        font-size: 11px;
+
+        line-height: 1.6;
+      }
+
+      .dj-private-empty-large {
+        padding: 70px 35px;
+
+        text-align: center;
+
+        background: white;
+
+        border: 1px solid #e5ded2;
+      }
+
+      .dj-private-empty-icon {
+        width: 48px;
+        height: 48px;
+
+        margin: 0 auto 17px;
+
+        display: grid;
+        place-items: center;
+
+        border-radius: 14px;
+
+        background: #f7edda;
+
+        color: #b87820;
+
+        font-size: 25px;
+      }
+
+      .dj-private-empty-large > span {
+        color: #b07d35;
+
+        font-size: 9px;
+
+        font-weight: 850;
+
+        letter-spacing: .17em;
+      }
+
+      .dj-private-empty-large h2 {
+        margin: 9px 0;
+
+        font-family:
+          Georgia,
+          serif;
+
+        font-size: 31px;
+
+        font-weight: 500;
+      }
+
+      .dj-private-empty-large p {
+        max-width: 530px;
+
+        margin: 0 auto;
+
+        color: #7b8999;
+
+        font-size: 12px;
+
         line-height: 1.7;
       }
 
 
-      .dj-private-help a {
-        display: inline-flex;
-        align-items: center;
-        gap: 9px;
-        color: #e0bc73;
-        font-size: 12px;
-        font-weight: 900;
-        text-decoration: none;
+      /* =====================================================
+         SIDEBAR
+      ===================================================== */
+
+      .dj-private-sidebar {
+        position: sticky;
+
+        top: 105px;
       }
 
+      .dj-private-sidebar-card {
+        padding: 22px;
 
-      .dj-private-back-card {
-        display: block;
-        margin-top: 14px;
-        padding: 17px;
-        border: 1px solid #ddd5c8;
-        background: #fff;
-        color: #27354a;
-        text-align: center;
-        font-size: 12px;
-        font-weight: 900;
-        text-decoration: none;
+        background: white;
+
+        border:
+          1px solid
+          #e4ddd2;
+
+        box-shadow:
+          0 15px 40px
+          rgba(20,34,56,.06);
       }
 
+      .dj-private-sidebar-label {
+        color: #ad7933;
 
-      .dj-private-back-card:hover {
-        border-color: #c9b99e;
+        font-size: 8px;
+
+        font-weight: 850;
+
+        letter-spacing: .17em;
       }
 
+      .dj-private-sidebar-card h3 {
+        margin: 11px 0 20px;
 
-      /* ===================================================
-         STATE
-      =================================================== */
-
-      .dj-private-state {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        flex-direction: column;
-        min-height: calc(100vh - 100px);
-        padding: 60px 24px;
-        background: #f7f3eb;
-        text-align: center;
-      }
-
-
-      .dj-private-state-icon,
-      .dj-private-loader {
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 58px;
-        height: 58px;
-        margin-bottom: 24px;
-        border-radius: 50%;
-        background: #102039;
-        color: #dcb263;
         font-family:
           Georgia,
           serif;
+
         font-size: 25px;
+
+        line-height: 1.15;
+
+        font-weight: 500;
       }
 
+      .dj-private-sidebar-divider {
+        height: 1px;
+
+        background: #e9e2d8;
+
+        margin: 0 -22px 8px;
+      }
+
+      .dj-private-sidebar-stat {
+        display: flex;
+
+        align-items: center;
+
+        justify-content: space-between;
+
+        gap: 10px;
+
+        padding: 12px 0;
+
+        border-bottom:
+          1px solid
+          #eee8df;
+      }
+
+      .dj-private-sidebar-stat:last-child {
+        border-bottom: 0;
+      }
+
+      .dj-private-sidebar-stat span {
+        color: #8995a5;
+
+        font-size: 10px;
+      }
+
+      .dj-private-sidebar-stat strong {
+        max-width: 135px;
+
+        color: #17263b;
+
+        font-size: 10px;
+
+        text-align: right;
+
+        white-space: nowrap;
+
+        overflow: hidden;
+
+        text-overflow: ellipsis;
+      }
+
+      .dj-private-sidebar-note {
+        margin-top: 12px;
+
+        padding: 19px;
+
+        background: #101e32;
+
+        color: white;
+      }
+
+      .dj-private-sidebar-note-icon {
+        width: 31px;
+        height: 31px;
+
+        display: grid;
+        place-items: center;
+
+        margin-bottom: 13px;
+
+        border-radius: 50%;
+
+        background: #dfbd80;
+
+        color: #102039;
+
+        font-family:
+          Georgia,
+          serif;
+
+        font-size: 17px;
+      }
+
+      .dj-private-sidebar-note strong {
+        display: block;
+
+        font-size: 13px;
+      }
+
+      .dj-private-sidebar-note p {
+        margin: 7px 0 13px;
+
+        color: #abb7c6;
+
+        font-size: 10px;
+
+        line-height: 1.6;
+      }
+
+      .dj-private-sidebar-note a {
+        display: inline-flex;
+
+        align-items: center;
+
+        gap: 6px;
+
+        color: #dfbd80;
+
+        font-size: 10px;
+
+        font-weight: 800;
+
+        text-decoration: none;
+      }
+
+      .dj-private-sidebar-back {
+        display: flex;
+
+        align-items: center;
+
+        justify-content: center;
+
+        gap: 7px;
+
+        margin-top: 11px;
+
+        padding: 12px;
+
+        border:
+          1px solid
+          #e1d9cd;
+
+        background: white;
+
+        color: #26374c;
+
+        font-size: 10px;
+
+        font-weight: 750;
+
+        text-decoration: none;
+      }
+
+
+      /* =====================================================
+         STATE
+      ===================================================== */
+
+      .dj-private-state {
+        min-height:
+          calc(100vh - 82px);
+
+        display: flex;
+
+        flex-direction: column;
+
+        align-items: center;
+
+        justify-content: center;
+
+        padding: 80px 20px;
+
+        text-align: center;
+
+        background: #f8f5ee;
+
+        color: #142238;
+      }
+
+      .dj-private-state-icon {
+        width: 55px;
+        height: 55px;
+
+        display: grid;
+        place-items: center;
+
+        margin-bottom: 20px;
+
+        border-radius: 50%;
+
+        background: #102039;
+
+        color: #dfbd80;
+
+        font-family:
+          Georgia,
+          serif;
+
+        font-size: 27px;
+      }
 
       .dj-private-state-eyebrow {
-        margin-bottom: 10px;
-        color: #b87925;
-        font-size: 10px;
-        font-weight: 900;
-        letter-spacing: 2px;
+        color: #b07d35;
+
+        font-size: 9px;
+
+        font-weight: 850;
+
+        letter-spacing: .18em;
       }
 
-
       .dj-private-state h1 {
-        margin: 0;
-        color: #102039;
+        margin: 13px 0 10px;
+
         font-family:
           Georgia,
           "Times New Roman",
           serif;
+
         font-size:
           clamp(
             38px,
             5vw,
-            58px
+            60px
           );
-        font-weight: 500;
-      }
 
+        line-height: 1;
+
+        font-weight: 500;
+
+        letter-spacing: -.03em;
+      }
 
       .dj-private-state p {
         max-width: 520px;
-        margin: 15px 0 28px;
-        color: #748197;
-        font-size: 15px;
+
+        margin: 0;
+
+        color: #718096;
+
+        font-size: 13px;
+
         line-height: 1.7;
       }
 
-
       .dj-private-primary {
         display: inline-flex;
+
         align-items: center;
-        gap: 10px;
-        padding:
-          14px 20px;
+
+        gap: 9px;
+
+        margin-top: 25px;
+
+        padding: 13px 18px;
+
         background: #102039;
+
         color: white;
-        font-size: 13px;
+
+        font-size: 11px;
+
         font-weight: 800;
+
         text-decoration: none;
       }
-
-
-      .dj-private-primary:hover {
-        background: #182d49;
-      }
-
 
       .dj-private-secondary {
         display: inline-flex;
+
         align-items: center;
-        padding:
-          14px 20px;
-        border: 1px solid #d8cebd;
-        background: #fff;
-        color: #26354b;
-        font-size: 13px;
+
+        justify-content: center;
+
+        margin-top: 25px;
+
+        padding: 13px 18px;
+
+        border:
+          1px solid
+          #ddd5c9;
+
+        background: white;
+
+        color: #24364c;
+
+        font-size: 11px;
+
         font-weight: 800;
+
         text-decoration: none;
       }
 
-
       .dj-private-state-actions {
         display: flex;
+
+        gap: 9px;
+
         flex-wrap: wrap;
+
         justify-content: center;
-        gap: 10px;
+      }
+
+      .dj-private-loader {
+        width: 30px;
+        height: 30px;
+
+        margin-bottom: 20px;
+
+        border:
+          2px solid
+          #e4ddd2;
+
+        border-top-color:
+          #b07d35;
+
+        border-radius: 50%;
+
+        animation:
+          dj-private-spin
+          .75s
+          linear
+          infinite;
+      }
+
+      @keyframes dj-private-spin {
+        to {
+          transform: rotate(360deg);
+        }
       }
 
 
-      /* ===================================================
-         RESPONSIVE
-      =================================================== */
+      /* =====================================================
+         TABLET
+      ===================================================== */
 
-      @media (
-        max-width: 1100px
-      ) {
+      @media (max-width: 1000px) {
 
         .dj-private-hero-grid {
-          grid-template-columns:
-            minmax(0, 1fr)
-            340px;
-
-          gap: 42px;
-        }
-
-        .dj-private-layout {
-          grid-template-columns:
-            minmax(0, 1fr)
-            320px;
+          grid-template-columns: 1fr;
 
           gap: 35px;
         }
 
-      }
-
-
-      @media (
-        max-width: 850px
-      ) {
-
-        .dj-private-hero-grid {
-          grid-template-columns: 1fr;
-        }
-
         .dj-private-hero-image {
-          height: 330px;
+          width: min(
+            600px,
+            100%
+          );
+
+          height: 390px;
         }
 
         .dj-private-layout {
@@ -2522,102 +2394,178 @@ function PrivateCourseStyles() {
 
         .dj-private-sidebar {
           position: static;
+
           display: grid;
+
           grid-template-columns:
             1fr 1fr;
-          gap: 16px;
+
+          gap: 12px;
         }
 
-        .dj-private-help {
-          margin-top: 0;
-        }
-
-        .dj-private-back-card {
-          grid-column: 1 / -1;
-          margin-top: 0;
+        .dj-private-sidebar-back {
+          grid-column: span 2;
         }
 
       }
 
 
-      @media (
-        max-width: 620px
-      ) {
+      /* =====================================================
+         MOBILE
+      ===================================================== */
+
+      @media (max-width: 700px) {
 
         .dj-private-container {
-          width: min(
-            100% - 30px,
-            1420px
-          );
+          width:
+            calc(100% - 28px);
         }
 
         .dj-private-hero {
           padding:
-            35px 0 55px;
+            35px 0 45px;
         }
 
         .dj-private-back {
           margin-bottom: 30px;
         }
 
-        .dj-private-hero-copy h1 {
-          font-size: 44px;
-          letter-spacing: -1.2px;
+        .dj-private-hero h1 {
+          font-size: 45px;
+        }
+
+        .dj-private-description {
+          font-size: 13px;
+        }
+
+        .dj-private-meta {
+          display: grid;
+
+          grid-template-columns:
+            1fr 1fr;
+        }
+
+        .dj-private-meta span {
+          min-width: 0;
         }
 
         .dj-private-hero-image {
-          height: 280px;
+          height: 300px;
+
+          border-radius:
+            20px
+            20px
+            55px
+            20px;
+        }
+
+        .dj-private-access-inner {
+          min-height: auto;
+
+          padding: 15px 0;
+
+          align-items:
+            flex-start;
+
+          flex-direction: column;
+        }
+
+        .dj-private-access-phone {
+          padding-left: 42px;
         }
 
         .dj-private-content {
           padding:
-            50px 0 70px;
+            45px 0 75px;
         }
 
-        .dj-private-section-heading {
-          align-items: flex-start;
+        .dj-private-section {
+          margin-bottom: 42px;
         }
 
-        .dj-private-section-heading h2 {
-          font-size: 36px;
+        .dj-private-section-head {
+          align-items:
+            flex-start;
         }
 
-        .dj-private-meta > div {
-          min-width: 120px;
-          padding-right: 18px;
-          margin-right: 18px;
+        .dj-private-section-head h2 {
+          font-size: 29px;
+        }
+
+        .dj-private-material {
+          align-items:
+            flex-start;
+
+          flex-wrap: wrap;
+        }
+
+        .dj-private-material-body {
+          min-width:
+            calc(
+              100% - 67px
+            );
+        }
+
+        .dj-private-video-frame video {
+          max-height: 360px;
+        }
+
+        .dj-private-pdf-frame {
+          height: 500px;
+        }
+
+        .dj-private-material-action {
+          width: 100%;
+        }
+
+        .dj-private-open-button,
+        .dj-private-live-button {
+          width: 100%;
         }
 
         .dj-private-sidebar {
-          display: block;
+          display: flex;
+
+          flex-direction: column;
         }
 
-        .dj-private-help {
-          margin-top: 16px;
-        }
-
-        .dj-private-back-card {
-          margin-top: 14px;
-        }
-
-        .dj-material-card {
-          align-items: flex-start;
-          flex-wrap: wrap;
-        }
-
-        .dj-material-open {
+        .dj-private-sidebar-back {
           width: 100%;
-          margin-left: 68px;
         }
 
-        .dj-external-video {
-          align-items: flex-start;
-          flex-wrap: wrap;
+      }
+
+
+      /* =====================================================
+         SMALL MOBILE
+      ===================================================== */
+
+      @media (max-width: 430px) {
+
+        .dj-private-hero h1 {
+          font-size: 39px;
         }
 
-        .dj-external-video a {
-          width: 100%;
-          margin-left: 70px;
+        .dj-private-meta {
+          grid-template-columns:
+            1fr 1fr;
+        }
+
+        .dj-private-meta span {
+          padding: 10px;
+        }
+
+        .dj-private-section-head {
+          gap: 10px;
+        }
+
+        .dj-private-section-head h2 {
+          font-size: 26px;
+        }
+
+        .dj-private-count {
+          min-width: 30px;
+          height: 30px;
         }
 
       }
