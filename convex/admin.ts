@@ -365,6 +365,8 @@ export const create =
         >),
       };
 
+      const now = Date.now();
+
 
       switch (
         args.table
@@ -402,7 +404,14 @@ export const create =
 
           return await ctx.db.insert(
             "courseMaterials",
-            data as any,
+            {
+              ...data,
+              createdAt:
+                typeof data.createdAt === "number"
+                  ? data.createdAt
+                  : now,
+              updatedAt: now,
+            } as any,
           );
 
 

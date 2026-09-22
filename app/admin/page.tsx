@@ -184,10 +184,7 @@ export default function AdminPage() {
     tab === "overview"
       ? "skip"
       : {
-          table: tab as Exclude<
-            TableName,
-            "courseMaterials"
-          >,
+          table: tab,
         },
   );
 
@@ -462,10 +459,7 @@ export default function AdminPage() {
                 }
 
                 await remove({
-                  table: tab as Exclude<
-                    TableName,
-                    "courseMaterials"
-                  >,
+                  table: tab,
                   id,
                 });
 
@@ -1720,10 +1714,7 @@ function RecordEditor({
       if (existing) {
 
         await update({
-          table: table as Exclude<
-            TableName,
-            "courseMaterials"
-          >,
+          table,
           id: existing._id,
           patch: data,
         });
@@ -1732,10 +1723,7 @@ function RecordEditor({
 
         recordId =
           (await create({
-            table: table as Exclude<
-              TableName,
-              "courseMaterials"
-            >,
+            table,
             data,
           })) as string;
       }
@@ -1750,17 +1738,17 @@ function RecordEditor({
         (form.photoFiles ??
           []) as File[];
 
-      const imageTable =
-        table === "properties" ||
-        table === "courses" ||
-        table === "events"
-          ? table
-          : null;
-
       if (
         recordId &&
         selectedFiles.length &&
-        imageTable
+        (
+          table ===
+            "properties" ||
+          table ===
+            "courses" ||
+          table ===
+            "events"
+        )
       ) {
 
         const storageIds:
@@ -1804,7 +1792,7 @@ function RecordEditor({
         }
 
         await attachImages({
-          table: imageTable,
+          table,
           id: recordId,
           storageIds,
         });
@@ -1886,6 +1874,7 @@ function RecordEditor({
                 categories={
                   categories
                 }
+                table={table}
               />
 
             ),
@@ -2125,20 +2114,23 @@ function Field({
   value,
   onChange,
   categories,
+  table,
 }: {
   field: any;
   value: any;
   onChange: (value: any) => void;
   categories: any[];
+  table: TableName;
 }) {
 
+  // =======================================================
+  // DESCRIPTION / MESSAGE / LONG TEXT
+  // =======================================================
+
   if (
-    field.key ===
-      "description" ||
-    field.key ===
-      "message" ||
-    field.key ===
-      "notes" ||
+    field.key === "description" ||
+    field.key === "message" ||
+    field.key === "notes" ||
     [
       "overview",
       "vastuDescription",
@@ -2146,45 +2138,182 @@ function Field({
       "contactDescription",
     ].includes(field.key)
   ) {
-
     return (
       <div className="dj-field full">
-
-        <span>
-          {field.label}
-        </span>
+        <span>{field.label}</span>
 
         <textarea
           rows={5}
-          value={
-            value ?? ""
-          }
+          value={value ?? ""}
+          placeholder={field.placeholder ?? ""}
           onChange={(event) =>
-            onChange(
-              event.target.value,
-            )
+            onChange(event.target.value)
           }
         />
-
       </div>
     );
   }
 
   // =======================================================
-  // STATUS FIELD
+  // COURSE MATERIAL TYPE
   // =======================================================
 
   if (
-    field.key ===
-    "status"
+    table === "courseMaterials" &&
+    field.key === "type"
   ) {
-
     return (
       <div className="dj-field">
+        <span>{field.label}</span>
 
-        <span>
-          {field.label}
-        </span>
+        <select
+          required={field.required}
+          value={value ?? ""}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+        >
+          <option value="">
+            Select material type
+          </option>
+
+          <option value="RECORDED_CLASS">
+            Recorded Class
+          </option>
+
+          <option value="PDF">
+            PDF
+          </option>
+
+          <option value="NOTE">
+            Notes / Document
+          </option>
+
+          <option value="LIVE_CLASS">
+            Live Class
+          </option>
+
+          <option value="GOOGLE_MEET">
+            Google Meet
+          </option>
+
+          <option value="VIDEO_LINK">
+            Video Link
+          </option>
+
+          <option value="LINK">
+            External Link
+          </option>
+
+          <option value="RESOURCE">
+            Other Resource
+          </option>
+        </select>
+      </div>
+    );
+  }
+
+  // =======================================================
+  // COURSE MATERIAL STATUS
+  // =======================================================
+
+  if (
+    table === "courseMaterials" &&
+    field.key === "status"
+  ) {
+    return (
+      <div className="dj-field">
+        <span>{field.label}</span>
+
+        <select
+          value={
+            String(value ?? "DRAFT").toUpperCase()
+          }
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+        >
+          <option value="DRAFT">
+            Draft
+          </option>
+
+          <option value="PUBLISHED">
+            Published
+          </option>
+        </select>
+      </div>
+    );
+  }
+
+  // =======================================================
+  // PROPERTY TYPE
+  // =======================================================
+
+  if (
+    table === "properties" &&
+    field.key === "type"
+  ) {
+    return (
+      <div className="dj-field">
+        <span>{field.label}</span>
+
+        <select
+          required={field.required}
+          value={value ?? ""}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+        >
+          <option value="">
+            Select property type
+          </option>
+
+          {categories
+            .filter(
+              (category) =>
+                category.status !== "inactive"
+            )
+            .map((category) => (
+              <option
+                key={category._id}
+                value={category.name}
+              >
+                {category.name}
+              </option>
+            ))}
+
+          {!categories.length && (
+            <>
+              <option value="Villa">
+                Villa
+              </option>
+
+              <option value="Apartment">
+                Apartment
+              </option>
+
+              <option value="Bungalow">
+                Bungalow
+              </option>
+
+              <option value="Land">
+                Land
+              </option>
+            </>
+          )}
+        </select>
+      </div>
+    );
+  }
+
+  // =======================================================
+  // STATUS
+  // =======================================================
+
+  if (field.key === "status") {
+    return (
+      <div className="dj-field">
+        <span>{field.label}</span>
 
         <select
           value={
@@ -2193,15 +2322,11 @@ function Field({
             ""
           }
           onChange={(event) =>
-            onChange(
-              event.target.value,
-            )
+            onChange(event.target.value)
           }
         >
-
           {(
-            field.options ??
-            [
+            field.options ?? [
               "active",
               "inactive",
               "new",
@@ -2221,101 +2346,15 @@ function Field({
               "failed",
               "refunded",
             ]
-          ).map(
-            (
-              option: string,
-            ) => (
-              <option
-                key={option}
-                value={option}
-              >
-                {pretty(option)}
-              </option>
-            ),
-          )}
-
+          ).map((option: string) => (
+            <option
+              key={option}
+              value={option}
+            >
+              {pretty(option)}
+            </option>
+          ))}
         </select>
-
-      </div>
-    );
-  }
-
-  // =======================================================
-  // PROPERTY TYPE
-  // =======================================================
-
-  if (
-    field.key === "type"
-  ) {
-
-    return (
-      <div className="dj-field">
-
-        <span>
-          {field.label}
-        </span>
-
-        <select
-          required
-          value={
-            value ?? ""
-          }
-          onChange={(event) =>
-            onChange(
-              event.target.value,
-            )
-          }
-        >
-
-          <option value="">
-            Select category
-          </option>
-
-          {categories
-            .filter(
-              (category) =>
-                category.status !==
-                "inactive",
-            )
-            .map(
-              (category) => (
-
-                <option
-                  key={
-                    category._id
-                  }
-                  value={
-                    category.name
-                  }
-                >
-                  {category.name}
-                </option>
-
-              ),
-            )}
-
-          {!categories.length && (
-            <>
-              <option>
-                Villa
-              </option>
-
-              <option>
-                Apartment
-              </option>
-
-              <option>
-                Bungalow
-              </option>
-
-              <option>
-                Land
-              </option>
-            </>
-          )}
-
-        </select>
-
       </div>
     );
   }
@@ -2324,44 +2363,29 @@ function Field({
   // COURSE LEVEL
   // =======================================================
 
-  if (
-    field.key ===
-    "level"
-  ) {
-
+  if (field.key === "level") {
     return (
       <div className="dj-field">
-
-        <span>
-          {field.label}
-        </span>
+        <span>{field.label}</span>
 
         <select
-          value={
-            value ??
-            "Beginner"
-          }
+          value={value ?? "Beginner"}
           onChange={(event) =>
-            onChange(
-              event.target.value,
-            )
+            onChange(event.target.value)
           }
         >
-
-          <option>
+          <option value="Beginner">
             Beginner
           </option>
 
-          <option>
+          <option value="Intermediate">
             Intermediate
           </option>
 
-          <option>
+          <option value="Advanced">
             Advanced
           </option>
-
         </select>
-
       </div>
     );
   }
@@ -2370,48 +2394,22 @@ function Field({
   // PRIORITY
   // =======================================================
 
-  if (
-    field.key ===
-    "priority"
-  ) {
-
+  if (field.key === "priority") {
     return (
       <div className="dj-field">
-
-        <span>
-          {field.label}
-        </span>
+        <span>{field.label}</span>
 
         <select
-          value={
-            value ??
-            "normal"
-          }
+          value={value ?? "normal"}
           onChange={(event) =>
-            onChange(
-              event.target.value,
-            )
+            onChange(event.target.value)
           }
         >
-
-          <option value="low">
-            Low
-          </option>
-
-          <option value="normal">
-            Normal
-          </option>
-
-          <option value="high">
-            High
-          </option>
-
-          <option value="urgent">
-            Urgent
-          </option>
-
+          <option value="low">Low</option>
+          <option value="normal">Normal</option>
+          <option value="high">High</option>
+          <option value="urgent">Urgent</option>
         </select>
-
       </div>
     );
   }
@@ -2421,10 +2419,8 @@ function Field({
   // =======================================================
 
   if (
-    field.key ===
-      "price" ||
-    field.key ===
-      "amount" ||
+    field.key === "price" ||
+    field.key === "amount" ||
     [
       "beds",
       "baths",
@@ -2432,31 +2428,23 @@ function Field({
       "floor",
       "totalFloors",
       "floorPlanPrice",
+      "sortOrder",
     ].includes(field.key)
   ) {
-
     return (
       <div className="dj-field">
-
-        <span>
-          {field.label}
-        </span>
+        <span>{field.label}</span>
 
         <input
           type="number"
           min="0"
-          value={
-            value ?? 0
-          }
+          value={value ?? 0}
           onChange={(event) =>
             onChange(
-              Number(
-                event.target.value,
-              ),
+              Number(event.target.value)
             )
           }
         />
-
       </div>
     );
   }
@@ -2466,65 +2454,48 @@ function Field({
   // =======================================================
 
   if (
-    field.key ===
-      "preferredDate" ||
-    field.key ===
-      "date" ||
-    field.key ===
-      "followUpAt"
+    field.key === "preferredDate" ||
+    field.key === "date" ||
+    field.key === "followUpAt"
   ) {
-
     return (
       <div className="dj-field">
-
-        <span>
-          {field.label}
-        </span>
+        <span>{field.label}</span>
 
         <input
           type="datetime-local"
           value={
             value
-              ? new Date(
-                  Number(value),
-                )
+              ? new Date(Number(value))
                   .toISOString()
-                  .slice(
-                    0,
-                    16,
-                  )
+                  .slice(0, 16)
               : ""
           }
           onChange={(event) =>
             onChange(
               event.target.value
                 ? new Date(
-                    event.target.value,
+                    event.target.value
                   ).getTime()
-                : undefined,
+                : undefined
             )
           }
         />
-
       </div>
     );
   }
 
   // =======================================================
-  // COURSE MATERIAL UPLOAD
+  // COURSE MATERIAL FILE UPLOAD
   // =======================================================
 
   if (
-    field.key ===
-    "materialFile"
+    table === "courseMaterials" &&
+    field.key === "materialFile"
   ) {
-
     return (
       <div className="dj-field full">
-
-        <span>
-          {field.label}
-        </span>
+        <span>{field.label}</span>
 
         <input
           type="file"
@@ -2532,7 +2503,7 @@ function Field({
           onChange={(event) =>
             onChange(
               event.target.files?.[0] ??
-                undefined,
+                undefined
             )
           }
         />
@@ -2542,7 +2513,6 @@ function Field({
           notes, audio or another course
           resource.
         </small>
-
       </div>
     );
   }
@@ -2551,17 +2521,10 @@ function Field({
   // PHOTO UPLOAD
   // =======================================================
 
-  if (
-    field.key ===
-    "photoFiles"
-  ) {
-
+  if (field.key === "photoFiles") {
     return (
       <div className="dj-field full">
-
-        <span>
-          {field.label}
-        </span>
+        <span>{field.label}</span>
 
         <input
           type="file"
@@ -2570,20 +2533,17 @@ function Field({
           onChange={(event) =>
             onChange(
               Array.from(
-                event.target
-                  .files ?? [],
-              ),
+                event.target.files ?? []
+              )
             )
           }
         />
 
         <small className="dj-help">
-          Select multiple JPG,
-          PNG or WebP photos.
-          They will be stored in
+          Select multiple JPG, PNG or WebP
+          photos. They will be stored in
           Convex Storage.
         </small>
-
       </div>
     );
   }
@@ -2593,41 +2553,66 @@ function Field({
   // =======================================================
 
   if (
-    field.key.endsWith(
-      "Text",
-    ) ||
-    field.key ===
-      "imagesText"
+    field.key.endsWith("Text") ||
+    field.key === "imagesText"
   ) {
-
     return (
       <div className="dj-field full">
-
-        <span>
-          {field.label}
-        </span>
+        <span>{field.label}</span>
 
         <textarea
           rows={
-            field.key ===
-            "imagesText"
+            field.key === "imagesText"
               ? 5
               : 6
           }
-          value={
-            value ?? ""
-          }
+          value={value ?? ""}
           onChange={(event) =>
-            onChange(
-              event.target.value,
-            )
+            onChange(event.target.value)
           }
           placeholder={
             field.placeholder ??
             "One item per line"
           }
         />
+      </div>
+    );
+  }
 
+  // =======================================================
+  // GENERIC SELECT
+  // =======================================================
+
+  if (
+    field.options &&
+    Array.isArray(field.options)
+  ) {
+    return (
+      <div className="dj-field">
+        <span>{field.label}</span>
+
+        <select
+          required={field.required}
+          value={value ?? ""}
+          onChange={(event) =>
+            onChange(event.target.value)
+          }
+        >
+          <option value="">
+            Select
+          </option>
+
+          {field.options.map(
+            (option: string) => (
+              <option
+                key={option}
+                value={option}
+              >
+                {pretty(option)}
+              </option>
+            )
+          )}
+        </select>
       </div>
     );
   }
@@ -2639,33 +2624,26 @@ function Field({
   return (
     <div
       className={`dj-field ${
-        field.full
-          ? "full"
-          : ""
+        field.full ? "full" : ""
       }`}
     >
-
-      <span>
-        {field.label}
-      </span>
+      <span>{field.label}</span>
 
       <input
-        required={
-          field.required
+        type={
+          field.key === "email"
+            ? "email"
+            : "text"
         }
-        value={
-          value ?? ""
-        }
+        required={field.required}
+        value={value ?? ""}
         onChange={(event) =>
-          onChange(
-            event.target.value,
-          )
+          onChange(event.target.value)
         }
         placeholder={
           field.placeholder
         }
       />
-
     </div>
   );
 }
@@ -3799,11 +3777,12 @@ function editorFields(
           "Material type",
           {
             options: [
-              "VIDEO",
+              "RECORDED_CLASS",
               "PDF",
               "NOTE",
               "LIVE_CLASS",
               "GOOGLE_MEET",
+              "VIDEO_LINK",
               "LINK",
               "RESOURCE",
             ],

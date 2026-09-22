@@ -5,12 +5,9 @@ import {
 
 import { v } from "convex/values";
 
-import { Id } from "./_generated/dataModel";
-
-
-// =========================================================
-// GENERATE UPLOAD URL
-// =========================================================
+/* =========================================================
+   GENERATE UPLOAD URL
+========================================================= */
 
 export const generateUploadUrl =
   mutation({
@@ -21,510 +18,452 @@ export const generateUploadUrl =
     },
   });
 
+/* =========================================================
+   LIST MATERIALS
+========================================================= */
 
-// =========================================================
-// LIST MATERIALS
-// =========================================================
-//
-// Students:
-//   only PUBLISHED materials
-//
-// Admin:
-//   includeDrafts = true
-// =========================================================
+export const list =
+  query({
+    args: {
+      includeDrafts:
+        v.optional(v.boolean()),
 
-export const list = query({
-  args: {
-    courseSlug: v.string(),
+      courseSlug:
+        v.optional(v.string()),
+    },
 
-    includeDrafts: v.optional(
-      v.boolean(),
-    ),
-  },
+    handler: async (
+      ctx,
+      args,
+    ) => {
+      let materials =
+        await ctx.db
+          .query("courseMaterials")
+          .collect();
 
-  handler: async (
-    ctx,
-    args,
-  ) => {
+      /* -----------------------------------------------------
+         COURSE FILTER
+      ----------------------------------------------------- */
 
-    const materials =
-      await ctx.db
-        .query(
-          "courseMaterials",
-        )
-        .withIndex(
-          "by_course",
-          (q) =>
-            q.eq(
-              "courseSlug",
+      if (
+        args.courseSlug &&
+        args.courseSlug.trim()
+      ) {
+        materials =
+          materials.filter(
+            (item) =>
+              item.courseSlug ===
               args.courseSlug,
-            ),
-        )
-        .collect();
+          );
+      }
 
+      /* -----------------------------------------------------
+         PUBLISHED / DRAFT
+      ----------------------------------------------------- */
 
-    const filtered =
-      args.includeDrafts
-        ? materials
-        : materials.filter(
+      if (!args.includeDrafts) {
+        materials =
+          materials.filter(
             (item) =>
               String(
-                item.status,
+                item.status ?? "",
               ).toUpperCase() ===
               "PUBLISHED",
           );
+      }
 
+      /* -----------------------------------------------------
+         SORT
+      ----------------------------------------------------- */
 
-    const result =
-      await Promise.all(
-        filtered.map(
-          async (item) => {
+      materials.sort(
+        (a, b) =>
+          a.courseSlug.localeCompare(
+            b.courseSlug,
+          ) ||
+          a.sortOrder -
+            b.sortOrder ||
+          b.createdAt -
+            a.createdAt,
+      );
 
+      /* -----------------------------------------------------
+         STORAGE URL
+      ----------------------------------------------------- */
+
+      return await Promise.all(
+        materials.map(
+          async (material) => {
             let storageUrl:
               | string
-              | null = null;
-
+              | undefined =
+              undefined;
 
             if (
-              item.storageId
+              material.storageId
             ) {
-              try {
-
-                storageUrl =
-                  await ctx.storage.getUrl(
-                    item.storageId as Id<"_storage">,
-                  );
-
-              } catch {
-                storageUrl = null;
-              }
+              storageUrl =
+                (await ctx.storage.getUrl(
+                  material.storageId,
+                )) ||
+                undefined;
             }
 
-
             return {
-              ...item,
+              ...material,
 
               storageUrl,
-
-              effectiveUrl:
-                storageUrl ||
-                item.url ||
-                null,
             };
           },
         ),
       );
+    },
+  });
 
+/* =========================================================
+   CREATE
+========================================================= */
 
-    return result.sort(
-      (a, b) =>
-        a.sortOrder -
-        b.sortOrder,
-    );
-  },
-});
+export const create =
+  mutation({
+    args: {
+      courseSlug:
+        v.string(),
 
+      title:
+        v.string(),
 
-// =========================================================
-// GET ONE MATERIAL
-// =========================================================
+      type:
+        v.string(),
 
-export const get = query({
-  args: {
-    id: v.id(
-      "courseMaterials",
-    ),
-  },
+      description:
+        v.optional(
+          v.string(),
+        ),
 
-  handler: async (
-    ctx,
-    args,
-  ) => {
+      url:
+        v.optional(
+          v.string(),
+        ),
 
-    const material =
-      await ctx.db.get(
-        args.id,
-      );
+      storageId:
+        v.optional(
+          v.id("_storage"),
+        ),
 
-    if (!material) {
-      return null;
-    }
+      sortOrder:
+        v.number(),
 
+      status:
+        v.string(),
+    },
 
-    let storageUrl:
-      | string
-      | null = null;
+    handler: async (
+      ctx,
+      args,
+    ) => {
+      const courseSlug =
+        args.courseSlug.trim();
 
+      const title =
+        args.title.trim();
 
-    if (
-      material.storageId
-    ) {
-      try {
-
-        storageUrl =
-          await ctx.storage.getUrl(
-            material.storageId as Id<"_storage">,
-          );
-
-      } catch {
-        storageUrl = null;
+      if (!courseSlug) {
+        throw new Error(
+          "Course is required.",
+        );
       }
-    }
 
+      if (!title) {
+        throw new Error(
+          "Material title is required.",
+        );
+      }
 
-    return {
-      ...material,
+      if (!args.type) {
+        throw new Error(
+          "Material type is required.",
+        );
+      }
 
-      storageUrl,
+      const course =
+        await ctx.db
+          .query("courses")
+          .withIndex(
+            "by_slug",
+            (q) =>
+              q.eq(
+                "slug",
+                courseSlug,
+              ),
+          )
+          .unique();
 
-      effectiveUrl:
-        storageUrl ||
-        material.url ||
-        null,
-    };
-  },
-});
+      if (!course) {
+        throw new Error(
+          "Selected course was not found.",
+        );
+      }
 
+      const cleanUrl =
+        args.url?.trim() ||
+        undefined;
 
-// =========================================================
-// CREATE
-// =========================================================
+      const status =
+        String(
+          args.status ?? "DRAFT",
+        ).toUpperCase() ===
+        "PUBLISHED"
+          ? "PUBLISHED"
+          : "DRAFT";
 
-export const create = mutation({
-  args: {
+      const now =
+        Date.now();
 
-    courseSlug:
-      v.string(),
+      return await ctx.db.insert(
+        "courseMaterials",
+        {
+          courseSlug,
 
-    title:
-      v.string(),
+          title,
 
-    type:
-      v.string(),
+          type:
+            args.type
+              .trim()
+              .toUpperCase(),
 
-    description:
-      v.optional(
+          description:
+            args.description?.trim() ||
+            undefined,
+
+          url:
+            cleanUrl,
+
+          storageId:
+            args.storageId,
+
+          sortOrder:
+            Number(
+              args.sortOrder ?? 0,
+            ),
+
+          status,
+
+          createdAt:
+            now,
+
+          updatedAt:
+            now,
+        },
+      );
+    },
+  });
+
+/* =========================================================
+   UPDATE
+========================================================= */
+
+export const update =
+  mutation({
+    args: {
+      id:
+        v.id(
+          "courseMaterials",
+        ),
+
+      courseSlug:
         v.string(),
-      ),
 
-    url:
-      v.optional(
+      title:
         v.string(),
-      ),
 
-    storageId:
-      v.optional(
+      type:
         v.string(),
-      ),
 
-    sortOrder:
-      v.number(),
+      description:
+        v.optional(
+          v.string(),
+        ),
 
-    status:
-      v.string(),
+      url:
+        v.optional(
+          v.string(),
+        ),
 
-    liveAt:
-      v.optional(
+      storageId:
+        v.optional(
+          v.id("_storage"),
+        ),
+
+      sortOrder:
         v.number(),
-      ),
 
-    liveEndAt:
-      v.optional(
-        v.number(),
-      ),
-  },
+      status:
+        v.string(),
+    },
 
-  handler: async (
-    ctx,
-    args,
-  ) => {
+    handler: async (
+      ctx,
+      args,
+    ) => {
+      const existing =
+        await ctx.db.get(
+          args.id,
+        );
 
-    const now =
-      Date.now();
+      if (!existing) {
+        throw new Error(
+          "Course material not found.",
+        );
+      }
 
+      const courseSlug =
+        args.courseSlug.trim();
 
-    const title =
-      args.title.trim();
+      const title =
+        args.title.trim();
 
-    const type =
-      args.type
-        .trim()
-        .toUpperCase();
+      if (!courseSlug) {
+        throw new Error(
+          "Course is required.",
+        );
+      }
 
-    const status =
-      args.status
-        .trim()
-        .toUpperCase();
+      if (!title) {
+        throw new Error(
+          "Material title is required.",
+        );
+      }
 
+      const course =
+        await ctx.db
+          .query("courses")
+          .withIndex(
+            "by_slug",
+            (q) =>
+              q.eq(
+                "slug",
+                courseSlug,
+              ),
+          )
+          .unique();
 
-    if (!title) {
-      throw new Error(
-        "Material title is required.",
-      );
-    }
+      if (!course) {
+        throw new Error(
+          "Selected course was not found.",
+        );
+      }
 
+      const status =
+        String(
+          args.status ?? "DRAFT",
+        ).toUpperCase() ===
+        "PUBLISHED"
+          ? "PUBLISHED"
+          : "DRAFT";
 
-    if (!args.courseSlug) {
-      throw new Error(
-        "Course is required.",
-      );
-    }
-
-
-    if (
-      type === "LIVE" &&
-      !args.url
-    ) {
-      throw new Error(
-        "Google Meet link is required for a live class.",
-      );
-    }
-
-
-    if (
-      type === "LIVE" &&
-      !args.liveAt
-    ) {
-      throw new Error(
-        "Live class start time is required.",
-      );
-    }
-
-
-    if (
-      type === "LIVE" &&
-      !args.liveEndAt
-    ) {
-      throw new Error(
-        "Live class end time is required.",
-      );
-    }
-
-
-    if (
-      args.liveAt &&
-      args.liveEndAt &&
-      args.liveEndAt <= args.liveAt
-    ) {
-      throw new Error(
-        "Live class end time must be after the start time.",
-      );
-    }
-
-
-    return await ctx.db.insert(
-      "courseMaterials",
-      {
-        courseSlug:
-          args.courseSlug,
+      const patch: any = {
+        courseSlug,
 
         title,
 
-        type,
+        type:
+          args.type
+            .trim()
+            .toUpperCase(),
 
         description:
-          args.description
-            ?.trim() ||
+          args.description?.trim() ||
           undefined,
 
         url:
           args.url?.trim() ||
           undefined,
 
-        storageId:
-          args.storageId,
-
         sortOrder:
-          args.sortOrder,
+          Number(
+            args.sortOrder ?? 0,
+          ),
 
         status,
-
-        liveAt:
-          args.liveAt,
-
-        liveEndAt:
-          args.liveEndAt,
-
-        createdAt:
-          now,
-
-        updatedAt:
-          now,
-      },
-    );
-  },
-});
-
-
-// =========================================================
-// UPDATE
-// =========================================================
-
-export const update = mutation({
-  args: {
-
-    id:
-      v.id(
-        "courseMaterials",
-      ),
-
-    title:
-      v.string(),
-
-    type:
-      v.string(),
-
-    description:
-      v.optional(
-        v.string(),
-      ),
-
-    url:
-      v.optional(
-        v.string(),
-      ),
-
-    storageId:
-      v.optional(
-        v.string(),
-      ),
-
-    sortOrder:
-      v.number(),
-
-    status:
-      v.string(),
-
-    liveAt:
-      v.optional(
-        v.number(),
-      ),
-
-    liveEndAt:
-      v.optional(
-        v.number(),
-      ),
-  },
-
-  handler: async (
-    ctx,
-    args,
-  ) => {
-
-    const type =
-      args.type
-        .trim()
-        .toUpperCase();
-
-    const status =
-      args.status
-        .trim()
-        .toUpperCase();
-
-
-    if (
-      type === "LIVE" &&
-      !args.url
-    ) {
-      throw new Error(
-        "Google Meet link is required for a live class.",
-      );
-    }
-
-
-    if (
-      type === "LIVE" &&
-      !args.liveAt
-    ) {
-      throw new Error(
-        "Live class start time is required.",
-      );
-    }
-
-
-    if (
-      type === "LIVE" &&
-      !args.liveEndAt
-    ) {
-      throw new Error(
-        "Live class end time is required.",
-      );
-    }
-
-
-    if (
-      args.liveAt &&
-      args.liveEndAt &&
-      args.liveEndAt <= args.liveAt
-    ) {
-      throw new Error(
-        "Live class end time must be after the start time.",
-      );
-    }
-
-
-    await ctx.db.patch(
-      args.id,
-      {
-        title:
-          args.title.trim(),
-
-        type,
-
-        description:
-          args.description
-            ?.trim() ||
-          undefined,
-
-        url:
-          args.url?.trim() ||
-          undefined,
-
-        storageId:
-          args.storageId,
-
-        sortOrder:
-          args.sortOrder,
-
-        status,
-
-        liveAt:
-          args.liveAt,
-
-        liveEndAt:
-          args.liveEndAt,
 
         updatedAt:
           Date.now(),
-      },
-    );
+      };
 
+      /*
+       * Only replace the existing storage file
+       * when a new file was uploaded.
+       */
+      if (
+        args.storageId
+      ) {
+        patch.storageId =
+          args.storageId;
+      }
 
-    return args.id;
-  },
-});
+      await ctx.db.patch(
+        args.id,
+        patch,
+      );
 
+      return args.id;
+    },
+  });
 
-// =========================================================
-// REMOVE
-// =========================================================
+/* =========================================================
+   DELETE
+========================================================= */
 
-export const remove = mutation({
-  args: {
-    id: v.id(
-      "courseMaterials",
-    ),
-  },
+export const remove =
+  mutation({
+    args: {
+      id:
+        v.id(
+          "courseMaterials",
+        ),
+    },
 
-  handler: async (
-    ctx,
-    args,
-  ) => {
+    handler: async (
+      ctx,
+      args,
+    ) => {
+      const material =
+        await ctx.db.get(
+          args.id,
+        );
 
-    await ctx.db.delete(
-      args.id,
-    );
+      if (!material) {
+        throw new Error(
+          "Course material not found.",
+        );
+      }
 
-    return true;
-  },
-});
+      /*
+       * Remove the associated file from
+       * Convex Storage as well.
+       */
+      if (
+        material.storageId
+      ) {
+        try {
+          await ctx.storage.delete(
+            material.storageId,
+          );
+        } catch {
+          /*
+           * Do not block database deletion
+           * if the storage object is already gone.
+           */
+        }
+      }
+
+      await ctx.db.delete(
+        args.id,
+      );
+
+      return {
+        success: true,
+      };
+    },
+  });

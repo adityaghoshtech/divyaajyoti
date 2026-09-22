@@ -32,6 +32,10 @@ export const getMyCourses = query({
     }
 
 
+    /* =====================================================
+       FIND ALL ENROLLMENTS FOR THIS PHONE
+    ===================================================== */
+
     const enrollments =
       await ctx.db
         .query(
@@ -48,6 +52,10 @@ export const getMyCourses = query({
         .collect();
 
 
+    /* =====================================================
+       ONLY APPROVED ENROLLMENTS
+    ===================================================== */
+
     const approved =
       enrollments
         .filter(
@@ -63,6 +71,10 @@ export const getMyCourses = query({
             a.createdAt,
         );
 
+
+    /* =====================================================
+       LOAD COURSE INFORMATION
+    ===================================================== */
 
     const result =
       await Promise.all(
@@ -88,6 +100,10 @@ export const getMyCourses = query({
                 .unique();
 
 
+            /* =============================================
+               LESSON COUNT
+            ============================================= */
+
             const lessonCount =
               course
                 ? Array.isArray(
@@ -95,10 +111,15 @@ export const getMyCourses = query({
                   )
                   ? course.lessons.length
                   : Number(
-                      course.lessons || 0,
+                      course.lessons ||
+                        0,
                     )
                 : 0;
 
+
+            /* =============================================
+               RETURN COURSE
+            ============================================= */
 
             return {
 
@@ -198,6 +219,10 @@ export const getCourseAccess =
       args,
     ) => {
 
+      /* ===================================================
+         NORMALIZE PHONE
+      =================================================== */
+
       const phone =
         normalizePhone(
           args.phone,
@@ -207,6 +232,10 @@ export const getCourseAccess =
         return null;
       }
 
+
+      /* ===================================================
+         FIND ENROLLMENTS FOR THIS PHONE
+      =================================================== */
 
       const enrollments =
         await ctx.db
@@ -224,15 +253,20 @@ export const getCourseAccess =
           .collect();
 
 
-      /*
-       * IMPORTANT:
-       *
-       * Access is based on:
-       *
-       * PHONE + COURSE SLUG
-       *
-       * Not course alone.
-       */
+      /* ===================================================
+         ACCESS RULE
+
+         USER MUST HAVE:
+
+         PHONE
+         +
+         COURSE SLUG
+         +
+         APPROVED STATUS
+
+         This prevents one student's approval from
+         giving another student access.
+      =================================================== */
 
       const enrollment =
         enrollments
@@ -257,6 +291,10 @@ export const getCourseAccess =
       }
 
 
+      /* ===================================================
+         FIND COURSE
+      =================================================== */
+
       const course =
         await ctx.db
           .query(
@@ -278,6 +316,10 @@ export const getCourseAccess =
       }
 
 
+      /* ===================================================
+         GET ALL COURSE MATERIALS
+      =================================================== */
+
       const materials =
         await ctx.db
           .query(
@@ -294,6 +336,12 @@ export const getCourseAccess =
           .collect();
 
 
+      /* ===================================================
+         ONLY PUBLISHED MATERIALS
+
+         Then generate a URL for Convex Storage files.
+      =================================================== */
+
       const publishedMaterials =
         await Promise.all(
 
@@ -301,9 +349,9 @@ export const getCourseAccess =
             .filter(
               (item) =>
                 String(
-                  item.status,
-                ).toLowerCase() ===
-                "published",
+                  item.status ?? "",
+                ).toUpperCase() ===
+                "PUBLISHED",
             )
             .sort(
               (a, b) =>
@@ -315,8 +363,13 @@ export const getCourseAccess =
                 item,
               ) => {
 
+                /* =========================================
+                   STORAGE URL
+                ========================================= */
+
                 let storageUrl:
-                  string | null =
+                  | string
+                  | null =
                   null;
 
 
@@ -341,28 +394,66 @@ export const getCourseAccess =
                 }
 
 
+                /* =========================================
+                   RETURN MATERIAL
+                ========================================= */
+
                 return {
 
                   id:
                     item._id,
 
+                  courseSlug:
+                    item.courseSlug,
+
                   title:
                     item.title,
 
                   type:
-                    item.type,
+                    String(
+                      item.type ?? "",
+                    ).toUpperCase(),
 
                   description:
                     item.description ??
                     "",
 
+                  /*
+                   * External URL
+                   *
+                   * Example:
+                   * Google Meet
+                   * YouTube
+                   * Google Drive
+                   */
                   url:
                     item.url ??
-                    storageUrl ??
                     "",
+
+                  /*
+                   * Convex Storage URL
+                   *
+                   * Example:
+                   * MP4
+                   * PDF
+                   * DOC
+                   * Image
+                   */
+                  storageUrl,
+
+                  /*
+                   * Keep storageId available
+                   * for debugging / future use.
+                   */
+                  storageId:
+                    item.storageId ??
+                    null,
 
                   sortOrder:
                     item.sortOrder,
+
+                  status:
+                    item.status,
 
                 };
 
@@ -372,17 +463,30 @@ export const getCourseAccess =
         );
 
 
+      /* ===================================================
+         LESSON COUNT
+      =================================================== */
+
       const lessonCount =
         Array.isArray(
           course.lessons,
         )
           ? course.lessons.length
           : Number(
-              course.lessons || 0,
+              course.lessons ||
+                0,
             );
 
 
+      /* ===================================================
+         FINAL RESPONSE
+      =================================================== */
+
       return {
+
+        /* ===============================================
+           ENROLLMENT
+        =============================================== */
 
         enrollment: {
 
@@ -392,11 +496,22 @@ export const getCourseAccess =
           name:
             enrollment.name,
 
+          email:
+            enrollment.email,
+
+          phone:
+            enrollment.phone,
+
           approvedAt:
             enrollment.approvedAt ??
             enrollment.createdAt,
 
         },
+
+
+        /* ===============================================
+           COURSE
+        =============================================== */
 
         course: {
 
@@ -434,6 +549,13 @@ export const getCourseAccess =
             [],
 
         },
+
+
+        /* ===============================================
+           MATERIALS
+
+           Every material here belongs to THIS course.
+        =============================================== */
 
         materials:
           publishedMaterials,

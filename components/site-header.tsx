@@ -221,7 +221,7 @@ export function SiteHeader() {
 
           <Link
             className="btn btn-dark btn-sm header-consultation-btn"
-            href="/consultation"
+            href=" /contact"
           >
 
             <span>
@@ -390,7 +390,7 @@ export function SiteHeader() {
 
             <Link
               className="btn btn-dark mobile-consultation-btn"
-              href="/consultation"
+              href="/contact"
               onClick={() =>
                 setOpen(false)
               }

@@ -1,15 +1,31 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import {
+  ChangeEvent,
+  FormEvent,
+  useMemo,
+  useState,
+} from "react";
+
+import {
+  useMutation,
+  useQuery,
+} from "convex/react";
 
 import { api } from "@/convex/_generated/api";
+import type { Id } from "@/convex/_generated/dataModel";
+
+/* =========================================================
+   TYPES
+========================================================= */
 
 type MaterialType =
   | "RECORDED_CLASS"
-  | "LIVE_CLASS"
   | "PDF"
   | "NOTE"
+  | "LIVE_CLASS"
+  | "GOOGLE_MEET"
+  | "VIDEO_LINK"
   | "RESOURCE";
 
 type Course = {
@@ -17,852 +33,1292 @@ type Course = {
   title: string;
   slug: string;
   category?: string;
+  duration?: string;
+  level?: string;
   status?: string;
 };
 
 type Material = {
-  _id: string;
+  _id: Id<"courseMaterials">;
   courseSlug: string;
   title: string;
   type: string;
   description?: string;
-  url?: string | null;
-  storageId?: string | null;
-  storageUrl?: string | null;
+  url?: string;
+  storageId?: Id<"_storage"> | string;
   sortOrder: number;
   status: string;
   createdAt: number;
   updatedAt?: number;
 };
 
+/* =========================================================
+   MATERIAL TYPES
+========================================================= */
+
+const MATERIAL_OPTIONS: {
+  value: MaterialType;
+  label: string;
+  description: string;
+  acceptsFile: boolean;
+  acceptsUrl: boolean;
+}[] = [
+  {
+    value: "RECORDED_CLASS",
+    label: "Recorded Class",
+    description:
+      "Upload a recorded lesson video such as MP4, WebM or MOV.",
+    acceptsFile: true,
+    acceptsUrl: true,
+  },
+  {
+    value: "PDF",
+    label: "PDF / Document",
+    description:
+      "Upload a PDF, workbook, presentation or course document.",
+    acceptsFile: true,
+    acceptsUrl: true,
+  },
+  {
+    value: "NOTE",
+    label: "Study Note",
+    description:
+      "Upload study notes or provide an external study document.",
+    acceptsFile: true,
+    acceptsUrl: true,
+  },
+  {
+    value: "LIVE_CLASS",
+    label: "Live Class",
+    description:
+      "Add a Google Meet or other live class joining link.",
+    acceptsFile: false,
+    acceptsUrl: true,
+  },
+  {
+    value: "GOOGLE_MEET",
+    label: "Google Meet",
+    description:
+      "Add the Google Meet link students will use to join.",
+    acceptsFile: false,
+    acceptsUrl: true,
+  },
+  {
+    value: "VIDEO_LINK",
+    label: "External Video",
+    description:
+      "Use YouTube, Vimeo, Google Drive or another video URL.",
+    acceptsFile: false,
+    acceptsUrl: true,
+  },
+  {
+    value: "RESOURCE",
+    label: "Other Resource",
+    description:
+      "Add another useful file, document or external resource.",
+    acceptsFile: true,
+    acceptsUrl: true,
+  },
+];
+
+/* =========================================================
+   HELPERS
+========================================================= */
+
+function normalizeType(value?: string) {
+  return String(value ?? "")
+    .trim()
+    .toUpperCase()
+    .replace(/[\s-]+/g, "_");
+}
+
+function prettyType(value?: string) {
+  const normalized = normalizeType(value);
+
+  const found = MATERIAL_OPTIONS.find(
+    (item) => item.value === normalized,
+  );
+
+  return found?.label || value || "Material";
+}
+
+function getMaterialOption(type: MaterialType) {
+  return MATERIAL_OPTIONS.find(
+    (item) => item.value === type,
+  );
+}
+
+function getFileAccept(type: MaterialType) {
+  switch (type) {
+    case "RECORDED_CLASS":
+      return "video/mp4,video/webm,video/quicktime";
+
+    case "PDF":
+      return "application/pdf";
+
+    case "NOTE":
+      return ".pdf,.doc,.docx,.ppt,.pptx,.txt";
+
+    case "RESOURCE":
+      return "*/*";
+
+    default:
+      return "";
+  }
+}
+
+function getCourseName(
+  courses: Course[] | undefined,
+  slug: string,
+) {
+  const course = courses?.find(
+    (item) => item.slug === slug,
+  );
+
+  return course?.title || slug;
+}
+
+/* =========================================================
+   PAGE
+========================================================= */
+
 export default function CourseMaterialsAdminPage() {
-  /* =========================================================
-     DATA
-  ========================================================= */
+  /* =======================================================
+     COURSES
+  ======================================================= */
 
-  const courses = useQuery(api.courses.list, {});
+  const courses = useQuery(
+    api.courses.list,
+    {},
+  );
 
-  const [selectedCourse, setSelectedCourse] =
-    useState("");
+  /* =======================================================
+     MATERIALS
+  ======================================================= */
 
   const materials = useQuery(
     api.courseMaterials.list,
-    selectedCourse
-      ? {
-          courseSlug: selectedCourse,
-          includeDrafts: true,
-        }
-      : "skip"
+    {
+      includeDrafts: true,
+      courseSlug: "",
+    },
   );
 
-  /* =========================================================
+  /* =======================================================
      MUTATIONS
-  ========================================================= */
+  ======================================================= */
 
   const generateUploadUrl = useMutation(
-    api.courseMaterials.generateUploadUrl
+    api.courseMaterials.generateUploadUrl,
   );
 
   const createMaterial = useMutation(
-    api.courseMaterials.create
+    api.courseMaterials.create,
   );
 
   const updateMaterial = useMutation(
-    api.courseMaterials.update
+    api.courseMaterials.update,
   );
 
   const removeMaterial = useMutation(
-    api.courseMaterials.remove
+    api.courseMaterials.remove,
   );
 
-  /* =========================================================
-     FORM
-  ========================================================= */
+  /* =======================================================
+     MODAL
+  ======================================================= */
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] =
+  const [showModal, setShowModal] =
+    useState(false);
+
+  const [editingMaterial, setEditingMaterial] =
+    useState<Material | null>(null);
+
+  /* =======================================================
+     FORM
+  ======================================================= */
+
+  const [courseSlug, setCourseSlug] =
+    useState("");
+
+  const [title, setTitle] =
     useState("");
 
   const [type, setType] =
-    useState<MaterialType>("RECORDED_CLASS");
+    useState<MaterialType>(
+      "RECORDED_CLASS",
+    );
+
+  const [description, setDescription] =
+    useState("");
 
   const [externalUrl, setExternalUrl] =
     useState("");
 
-  const [file, setFile] =
-    useState<File | null>(null);
+  const [sortOrder, setSortOrder] =
+    useState("0");
 
   const [status, setStatus] =
-    useState("published");
+    useState<"DRAFT" | "PUBLISHED">(
+      "DRAFT",
+    );
 
-  const [uploading, setUploading] =
+  const [selectedFile, setSelectedFile] =
+    useState<File | null>(null);
+
+  /* =======================================================
+     FILTERS
+  ======================================================= */
+
+  const [filterCourse, setFilterCourse] =
+    useState("ALL");
+
+  const [filterType, setFilterType] =
+    useState("ALL");
+
+  const [search, setSearch] =
+    useState("");
+
+  /* =======================================================
+     UI
+  ======================================================= */
+
+  const [saving, setSaving] =
     useState(false);
 
-  const [message, setMessage] =
-    useState("");
+  const [deletingId, setDeletingId] =
+    useState<Id<"courseMaterials"> | null>(
+      null,
+    );
 
   const [error, setError] =
     useState("");
 
-  /* =========================================================
-     SELECT FIRST COURSE
-  ========================================================= */
+  const [success, setSuccess] =
+    useState("");
 
-  useEffect(() => {
-    if (
-      !selectedCourse &&
-      courses &&
-      courses.length > 0
-    ) {
-      setSelectedCourse(courses[0].slug);
-    }
-  }, [courses, selectedCourse]);
+  /* =======================================================
+     SELECTED TYPE
+  ======================================================= */
 
-  /* =========================================================
-     SELECTED COURSE
-  ========================================================= */
+  const selectedType =
+    getMaterialOption(type);
 
-  const currentCourse = useMemo(() => {
-    if (!courses || !selectedCourse) {
-      return null;
-    }
+  /* =======================================================
+     RESET FORM
+  ======================================================= */
 
-    return courses.find(
-      (course: Course) =>
-        course.slug === selectedCourse
-    );
-  }, [courses, selectedCourse]);
-
-  /* =========================================================
-     RESET
-  ========================================================= */
-
-  function resetForm() {
+  const resetForm = () => {
+    setCourseSlug("");
     setTitle("");
-    setDescription("");
     setType("RECORDED_CLASS");
+    setDescription("");
     setExternalUrl("");
-    setFile(null);
-    setStatus("published");
+    setSortOrder("0");
+    setStatus("DRAFT");
+    setSelectedFile(null);
+    setEditingMaterial(null);
+    setError("");
+    setSuccess("");
+  };
 
-    const input =
-      document.getElementById(
-        "material-file"
-      ) as HTMLInputElement | null;
+  /* =======================================================
+     OPEN CREATE
+  ======================================================= */
 
-    if (input) {
-      input.value = "";
-    }
-  }
+  const openCreate = () => {
+    resetForm();
+    setShowModal(true);
+  };
 
-  /* =========================================================
-     UPLOAD FILE
-  ========================================================= */
+  /* =======================================================
+     OPEN EDIT
+  ======================================================= */
 
-  async function uploadFileToConvex(
-    selectedFile: File
-  ) {
-    const uploadUrl =
-      await generateUploadUrl();
+  const openEdit = (
+    material: Material,
+  ) => {
+    setEditingMaterial(material);
 
-    const result = await fetch(
-      uploadUrl,
-      {
-        method: "POST",
-        headers: {
-          "Content-Type":
-            selectedFile.type ||
-            "application/octet-stream",
-        },
-        body: selectedFile,
-      }
+    setCourseSlug(
+      material.courseSlug || "",
     );
 
-    if (!result.ok) {
-      throw new Error(
-        "File upload failed."
+    setTitle(
+      material.title || "",
+    );
+
+    const normalizedType =
+      normalizeType(
+        material.type,
+      ) as MaterialType;
+
+    const supported =
+      MATERIAL_OPTIONS.some(
+        (item) =>
+          item.value ===
+          normalizedType,
       );
+
+    setType(
+      supported
+        ? normalizedType
+        : "RESOURCE",
+    );
+
+    setDescription(
+      material.description || "",
+    );
+
+    setExternalUrl(
+      material.url || "",
+    );
+
+    setSortOrder(
+      String(
+        material.sortOrder ?? 0,
+      ),
+    );
+
+    setStatus(
+      String(
+        material.status ?? "DRAFT",
+      ).toUpperCase() === "PUBLISHED"
+        ? "PUBLISHED"
+        : "DRAFT",
+    );
+
+    setSelectedFile(null);
+
+    setError("");
+    setSuccess("");
+
+    setShowModal(true);
+  };
+
+  /* =======================================================
+     CLOSE MODAL
+  ======================================================= */
+
+  const closeModal = () => {
+    if (saving) {
+      return;
     }
 
-    const data = await result.json();
+    setShowModal(false);
+    resetForm();
+  };
 
-    if (!data.storageId) {
-      throw new Error(
-        "Convex did not return a storage ID."
-      );
+  /* =======================================================
+     COURSE CHANGE
+  ======================================================= */
+
+  const handleCourseChange = (
+    event: ChangeEvent<HTMLSelectElement>,
+  ) => {
+    setCourseSlug(
+      event.target.value,
+    );
+
+    setError("");
+  };
+
+  /* =======================================================
+     TYPE CHANGE
+  ======================================================= */
+
+  const handleTypeChange = (
+    event: ChangeEvent<HTMLSelectElement>,
+  ) => {
+    const nextType =
+      event.target.value as MaterialType;
+
+    setType(nextType);
+
+    /*
+     * Clear the old file when the
+     * material category changes.
+     */
+    setSelectedFile(null);
+
+    /*
+     * A live class / Google Meet
+     * does not need a file.
+     */
+    if (
+      nextType === "LIVE_CLASS" ||
+      nextType === "GOOGLE_MEET"
+    ) {
+      setExternalUrl("");
     }
 
-    return String(data.storageId);
-  }
+    setError("");
+  };
 
-  /* =========================================================
-     CREATE MATERIAL
-  ========================================================= */
+  /* =======================================================
+     FILE CHANGE
+  ======================================================= */
 
-  async function handleCreate(
-    event: React.FormEvent
-  ) {
-    event.preventDefault();
-
-    setMessage("");
+  const handleFileChange = (
+    event: ChangeEvent<HTMLInputElement>,
+  ) => {
     setError("");
 
-    if (!selectedCourse) {
-      setError(
-        "Please select a course."
+    const file =
+      event.target.files?.[0] ?? null;
+
+    setSelectedFile(file);
+  };
+
+  /* =======================================================
+     UPLOAD FILE TO CONVEX
+  ======================================================= */
+
+  const uploadFile = async (
+    file: File,
+  ): Promise<Id<"_storage">> => {
+    const uploadUrl =
+      await generateUploadUrl({});
+
+    if (!uploadUrl) {
+      throw new Error(
+        "Could not create the Convex upload URL.",
       );
-      return;
+    }
+
+    const response =
+      await fetch(
+        uploadUrl,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type":
+              file.type ||
+              "application/octet-stream",
+          },
+          body: file,
+        },
+      );
+
+    if (!response.ok) {
+      throw new Error(
+        `Upload failed for ${file.name}.`,
+      );
+    }
+
+    const result =
+      await response.json();
+
+    if (!result.storageId) {
+      throw new Error(
+        "Convex did not return a storage ID.",
+      );
+    }
+
+    return result.storageId as Id<"_storage">;
+  };
+
+  /* =======================================================
+     VALIDATION
+  ======================================================= */
+
+  const validateForm = () => {
+    if (!courseSlug) {
+      return "Please select a course.";
     }
 
     if (!title.trim()) {
-      setError(
-        "Please enter a material title."
-      );
-      return;
+      return "Please enter a material title.";
     }
 
-    const requiresFile =
-      type === "RECORDED_CLASS" ||
-      type === "PDF" ||
-      type === "NOTE";
-
-    const requiresUrl =
+    /*
+     * Live classes and Google Meet
+     * require a URL.
+     */
+    if (
       type === "LIVE_CLASS" ||
-      type === "RESOURCE";
-
-    if (
-      requiresFile &&
-      !file &&
-      !externalUrl.trim()
+      type === "GOOGLE_MEET"
     ) {
-      setError(
-        "Please upload a file or provide an external URL."
-      );
+      if (!externalUrl.trim()) {
+        return "Please enter the Google Meet / live class link.";
+      }
+    }
+
+    /*
+     * Recorded class can use either
+     * an uploaded video or external URL.
+     */
+    if (
+      type === "RECORDED_CLASS"
+    ) {
+      if (
+        !selectedFile &&
+        !externalUrl.trim() &&
+        !editingMaterial?.storageId
+      ) {
+        return "Please upload a recorded class video or enter a video URL.";
+      }
+    }
+
+    /*
+     * PDF
+     */
+    if (type === "PDF") {
+      if (
+        !selectedFile &&
+        !externalUrl.trim() &&
+        !editingMaterial?.storageId
+      ) {
+        return "Please upload a PDF or enter a document URL.";
+      }
+    }
+
+    /*
+     * Note
+     */
+    if (type === "NOTE") {
+      if (
+        !selectedFile &&
+        !externalUrl.trim() &&
+        !editingMaterial?.storageId
+      ) {
+        return "Please upload a note or enter a document URL.";
+      }
+    }
+
+    /*
+     * External video
+     */
+    if (
+      type === "VIDEO_LINK"
+    ) {
+      if (!externalUrl.trim()) {
+        return "Please enter the external video URL.";
+      }
+    }
+
+    /*
+     * Other resource
+     */
+    if (type === "RESOURCE") {
+      if (
+        !selectedFile &&
+        !externalUrl.trim() &&
+        !editingMaterial?.storageId
+      ) {
+        return "Please upload a file or enter a resource URL.";
+      }
+    }
+
+    return "";
+  };
+
+  /* =======================================================
+     SUBMIT
+  ======================================================= */
+
+  const handleSubmit = async (
+    event: FormEvent<HTMLFormElement>,
+  ) => {
+    event.preventDefault();
+
+    setError("");
+    setSuccess("");
+
+    const validation =
+      validateForm();
+
+    if (validation) {
+      setError(validation);
       return;
     }
 
-    if (
-      requiresUrl &&
-      !externalUrl.trim()
-    ) {
-      setError(
-        "Please enter the link."
-      );
-      return;
-    }
+    setSaving(true);
 
     try {
-      setUploading(true);
-
       let storageId:
-        | string
+        | Id<"_storage">
         | undefined;
 
       /*
-       * Upload local file to Convex Storage.
+       * Upload a new file if selected.
        */
-      if (file) {
+      if (selectedFile) {
         storageId =
-          await uploadFileToConvex(file);
+          await uploadFile(
+            selectedFile,
+          );
       }
 
-      const existingCount =
-        materials?.length || 0;
+      const cleanUrl =
+        externalUrl.trim();
 
-      await createMaterial({
-        courseSlug: selectedCourse,
-        title: title.trim(),
-        type,
-        description:
-          description.trim() ||
-          undefined,
-        url:
-          externalUrl.trim() ||
-          undefined,
-        storageId,
-        sortOrder:
-          existingCount + 1,
-        status,
-      });
+      const cleanTitle =
+        title.trim();
 
-      setMessage(
-        "Course material published successfully."
+      const cleanDescription =
+        description.trim();
+
+      const cleanCourseSlug =
+        courseSlug.trim();
+
+      const cleanSortOrder =
+        Number(sortOrder || 0);
+
+      /*
+       * CREATE
+       */
+      if (!editingMaterial) {
+        await createMaterial({
+          courseSlug:
+            cleanCourseSlug,
+
+          title:
+            cleanTitle,
+
+          type,
+
+          description:
+            cleanDescription ||
+            undefined,
+
+          url:
+            cleanUrl ||
+            undefined,
+
+          storageId,
+
+          sortOrder:
+            cleanSortOrder,
+
+          status,
+        });
+      }
+
+      /*
+       * UPDATE
+       */
+      else {
+        await updateMaterial({
+          id:
+            editingMaterial._id,
+
+          courseSlug:
+            cleanCourseSlug,
+
+          title:
+            cleanTitle,
+
+          type,
+
+          description:
+            cleanDescription ||
+            undefined,
+
+          url:
+            cleanUrl ||
+            undefined,
+
+          ...(storageId
+            ? {
+                storageId,
+              }
+            : {}),
+
+          sortOrder:
+            cleanSortOrder,
+
+          status,
+        });
+      }
+
+      setSuccess(
+        editingMaterial
+          ? "Course material updated successfully."
+          : "Course material added successfully.",
       );
 
-      resetForm();
-    } catch (err) {
-      console.error(err);
+      /*
+       * Close after successful save.
+       */
+      setTimeout(() => {
+        setShowModal(false);
+        resetForm();
+      }, 700);
+    } catch (err: any) {
+      console.error(
+        "Course material error:",
+        err,
+      );
 
       setError(
-        err instanceof Error
-          ? err.message
-          : "Something went wrong while uploading."
+        err?.message ||
+          "Unable to save course material.",
       );
     } finally {
-      setUploading(false);
+      setSaving(false);
     }
-  }
+  };
 
-  /* =========================================================
+  /* =======================================================
      DELETE
-  ========================================================= */
+  ======================================================= */
 
-  async function handleDelete(
-    id: string,
-    materialTitle: string
-  ) {
+  const handleDelete = async (
+    id: Id<"courseMaterials">,
+  ) => {
     const confirmed =
       window.confirm(
-        `Delete "${materialTitle}"? This cannot be undone.`
+        "Are you sure you want to delete this course material?",
       );
 
     if (!confirmed) {
       return;
     }
 
-    try {
-      setError("");
-      setMessage("");
+    setDeletingId(id);
 
+    try {
       await removeMaterial({
-        id: id as any,
+        id,
       });
-
-      setMessage(
-        "Material deleted successfully."
+    } catch (err: any) {
+      window.alert(
+        err?.message ||
+          "Unable to delete material.",
       );
-    } catch (err) {
-      console.error(err);
-
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to delete material."
-      );
+    } finally {
+      setDeletingId(null);
     }
-  }
+  };
 
-  /* =========================================================
-     TOGGLE STATUS
-  ========================================================= */
+  /* =======================================================
+     FILTERED MATERIALS
+  ======================================================= */
 
-  async function handleToggleStatus(
-    material: Material
-  ) {
-    try {
-      const nextStatus =
-        material.status === "published"
-          ? "draft"
-          : "published";
+  const materialRows =
+    useMemo(() => {
+      if (!materials) {
+        return [];
+      }
 
-      await updateMaterial({
-        id: material._id as any,
-        title: material.title,
-        type: material.type,
-        status: nextStatus,
-        sortOrder: material.sortOrder,
-      });
+      const query =
+        search
+          .trim()
+          .toLowerCase();
 
-      setMessage(
-        nextStatus === "published"
-          ? "Material published."
-          : "Material moved to draft."
-      );
-    } catch (err) {
-      console.error(err);
+      return [...materials]
+        .filter((material) => {
+          if (
+            filterCourse !== "ALL" &&
+            material.courseSlug !==
+              filterCourse
+          ) {
+            return false;
+          }
 
-      setError(
-        err instanceof Error
-          ? err.message
-          : "Unable to update material."
-      );
-    }
-  }
+          if (
+            filterType !== "ALL" &&
+            normalizeType(
+              material.type,
+            ) !== filterType
+          ) {
+            return false;
+          }
 
-  /* =========================================================
+          if (!query) {
+            return true;
+          }
+
+          return (
+            material.title
+              .toLowerCase()
+              .includes(query) ||
+            material.courseSlug
+              .toLowerCase()
+              .includes(query) ||
+            String(
+              material.description ||
+                "",
+            )
+              .toLowerCase()
+              .includes(query)
+          );
+        })
+        .sort(
+          (a, b) =>
+            a.courseSlug.localeCompare(
+              b.courseSlug,
+            ) ||
+            a.sortOrder -
+              b.sortOrder,
+        );
+    }, [
+      materials,
+      filterCourse,
+      filterType,
+      search,
+    ]);
+
+  /* =======================================================
      LOADING
-  ========================================================= */
+  ======================================================= */
 
-  if (courses === undefined) {
+  if (
+    courses === undefined ||
+    materials === undefined
+  ) {
     return (
       <>
-        <div className="dj-admin-loading">
-          Loading courses...
-        </div>
+        <main className="cm-page">
+          <div className="cm-loading-page">
+            <div className="cm-loader" />
+            <h2>
+              Loading course materials...
+            </h2>
+            <p>
+              Loading courses and learning content.
+            </p>
+          </div>
+        </main>
 
-        <AdminMaterialStyles />
+        <CourseMaterialsStyles />
       </>
     );
   }
 
-  /* =========================================================
-     RENDER
-  ========================================================= */
+  /* =======================================================
+     PAGE
+  ======================================================= */
 
   return (
     <>
-      <main className="dj-material-page">
-
-        {/* =================================================
-            HEADER
-        ================================================= */}
-
-        <section className="dj-material-header">
-
-          <div>
-
-            <div className="dj-material-eyebrow">
-              DIVYAJYOTI ADMIN
-            </div>
-
-            <h1>
-              Course Materials
-            </h1>
-
-            <p>
-              Upload and manage recorded classes,
-              PDFs, notes, live classes and other
-              learning resources.
-            </p>
-
-          </div>
-
-          <div className="dj-material-header-badge">
-            CONTENT MANAGER
-          </div>
-
-        </section>
-
-        {/* =================================================
-            COURSE SELECTOR
-        ================================================= */}
-
-        <section className="dj-material-course-selector">
-
-          <div className="dj-material-selector-copy">
-
-            <span>
-              SELECT COURSE
-            </span>
-
-            <strong>
-              Choose the course you want to manage.
-            </strong>
-
-          </div>
-
-          <select
-            value={selectedCourse}
-            onChange={(event) =>
-              setSelectedCourse(
-                event.target.value
-              )
-            }
-          >
-
-            <option value="">
-              Select a course
-            </option>
-
-            {courses.map(
-              (course: Course) => (
-                <option
-                  key={course._id}
-                  value={course.slug}
-                >
-                  {course.title}
-                </option>
-              )
-            )}
-
-          </select>
-
-        </section>
-
-        {/* =================================================
-            MESSAGES
-        ================================================= */}
-
-        {message && (
-          <div className="dj-material-success">
-            <span>✓</span>
-            {message}
-          </div>
-        )}
-
-        {error && (
-          <div className="dj-material-error">
-            <span>!</span>
-            {error}
-          </div>
-        )}
-
-        {/* =================================================
-            MAIN GRID
-        ================================================= */}
-
-        <div className="dj-material-grid">
+      <main className="cm-page">
+        <div className="cm-container">
 
           {/* =================================================
-              UPLOAD FORM
+              HEADER
           ================================================= */}
 
-          <section className="dj-material-card">
+          <header className="cm-header">
 
-            <div className="dj-material-card-header">
-
-              <div>
-
-                <span>
-                  ADD CONTENT
-                </span>
-
-                <h2>
-                  Upload course material
-                </h2>
-
+            <div>
+              <div className="cm-eyebrow">
+                DIVYAJYOTI ADMIN
               </div>
 
-              {currentCourse && (
-                <div className="dj-material-current-course">
-                  {currentCourse.title}
-                </div>
-              )}
+              <h1>
+                Course Materials
+              </h1>
 
+              <p>
+                Upload and manage recorded
+                classes, PDFs, notes and live
+                classes for each course.
+              </p>
             </div>
 
-            <form
-              onSubmit={handleCreate}
-              className="dj-material-form"
+            <button
+              type="button"
+              className="cm-primary-button"
+              onClick={openCreate}
             >
+              <span className="cm-plus">
+                +
+              </span>
 
-              {/* TITLE */}
+              Add Course Material
+            </button>
 
-              <div className="dj-field">
+          </header>
 
-                <label>
-                  Material title
-                </label>
+          {/* =================================================
+              HOW IT WORKS
+          ================================================= */}
 
-                <input
-                  type="text"
-                  placeholder="Example: Introduction to Predictive Astrology"
-                  value={title}
-                  onChange={(event) =>
-                    setTitle(
-                      event.target.value
-                    )
-                  }
-                />
+          <section className="cm-info-grid">
 
+            <div className="cm-info-card">
+              <span className="cm-info-number">
+                01
+              </span>
+
+              <div>
+                <strong>
+                  Select Course
+                </strong>
+
+                <p>
+                  Choose one of the courses
+                  already created in your
+                  Courses section.
+                </p>
               </div>
+            </div>
 
-              {/* TYPE */}
+            <div className="cm-info-card">
+              <span className="cm-info-number">
+                02
+              </span>
 
-              <div className="dj-field">
+              <div>
+                <strong>
+                  Add Content
+                </strong>
 
-                <label>
-                  Material type
-                </label>
-
-                <select
-                  value={type}
-                  onChange={(event) =>
-                    setType(
-                      event.target
-                        .value as MaterialType
-                    )
-                  }
-                >
-
-                  <option value="RECORDED_CLASS">
-                    Recorded Class Video
-                  </option>
-
-                  <option value="LIVE_CLASS">
-                    Live Class / Google Meet
-                  </option>
-
-                  <option value="PDF">
-                    PDF
-                  </option>
-
-                  <option value="NOTE">
-                    Notes
-                  </option>
-
-                  <option value="RESOURCE">
-                    Resource / Link
-                  </option>
-
-                </select>
-
+                <p>
+                  Upload videos, PDFs and
+                  notes or add a Google Meet
+                  link.
+                </p>
               </div>
+            </div>
 
-              {/* DESCRIPTION */}
+            <div className="cm-info-card">
+              <span className="cm-info-number">
+                03
+              </span>
 
-              <div className="dj-field">
+              <div>
+                <strong>
+                  Publish
+                </strong>
 
-                <label>
-                  Description
-                  <span>
-                    Optional
-                  </span>
-                </label>
-
-                <textarea
-                  rows={4}
-                  placeholder="Short description about this class or material..."
-                  value={description}
-                  onChange={(event) =>
-                    setDescription(
-                      event.target.value
-                    )
-                  }
-                />
-
+                <p>
+                  Published content appears
+                  inside the student's private
+                  course page.
+                </p>
               </div>
-
-              {/* FILE */}
-
-              {(type ===
-                "RECORDED_CLASS" ||
-                type === "PDF" ||
-                type === "NOTE") && (
-                <div className="dj-field">
-
-                  <label>
-                    Upload file
-                  </label>
-
-                  <label
-                    htmlFor="material-file"
-                    className="dj-file-drop"
-                  >
-
-                    <div className="dj-file-icon">
-                      ↑
-                    </div>
-
-                    <strong>
-                      {file
-                        ? file.name
-                        : "Choose a file"}
-                    </strong>
-
-                    <span>
-                      {file
-                        ? `${(
-                            file.size /
-                            1024 /
-                            1024
-                          ).toFixed(2)} MB`
-                        : type ===
-                          "RECORDED_CLASS"
-                        ? "Upload MP4, WebM or other video file"
-                        : "Upload PDF or document"}
-                    </span>
-
-                    <input
-                      id="material-file"
-                      type="file"
-                      accept={
-                        type ===
-                        "RECORDED_CLASS"
-                          ? "video/*"
-                          : type === "PDF"
-                          ? ".pdf,application/pdf"
-                          : ".pdf,.doc,.docx,.txt"
-                      }
-                      onChange={(event) =>
-                        setFile(
-                          event.target
-                            .files?.[0] ||
-                            null
-                        )
-                      }
-                    />
-
-                  </label>
-
-                </div>
-              )}
-
-              {/* EXTERNAL URL */}
-
-              <div className="dj-field">
-
-                <label>
-                  External URL
-                  <span>
-                    {type ===
-                    "LIVE_CLASS"
-                      ? "Required"
-                      : "Optional"}
-                  </span>
-                </label>
-
-                <input
-                  type="url"
-                  placeholder={
-                    type ===
-                    "LIVE_CLASS"
-                      ? "https://meet.google.com/..."
-                      : type ===
-                        "RECORDED_CLASS"
-                      ? "Optional YouTube / Vimeo link"
-                      : "https://..."
-                  }
-                  value={externalUrl}
-                  onChange={(event) =>
-                    setExternalUrl(
-                      event.target.value
-                    )
-                  }
-                />
-
-                {type ===
-                  "LIVE_CLASS" && (
-                  <small className="dj-field-help">
-                    Paste your Google Meet
-                    meeting link here.
-                  </small>
-                )}
-
-                {type ===
-                  "RECORDED_CLASS" && (
-                  <small className="dj-field-help">
-                    You can either upload a
-                    video file or use a YouTube /
-                    Vimeo URL.
-                  </small>
-                )}
-
-              </div>
-
-              {/* STATUS */}
-
-              <div className="dj-field">
-
-                <label>
-                  Publishing status
-                </label>
-
-                <select
-                  value={status}
-                  onChange={(event) =>
-                    setStatus(
-                      event.target.value
-                    )
-                  }
-                >
-
-                  <option value="published">
-                    Published
-                  </option>
-
-                  <option value="draft">
-                    Draft
-                  </option>
-
-                </select>
-
-              </div>
-
-              {/* SUBMIT */}
-
-              <button
-                type="submit"
-                disabled={
-                  uploading ||
-                  !selectedCourse
-                }
-                className="dj-material-submit"
-              >
-
-                {uploading
-                  ? "Uploading..."
-                  : "Publish Material"}
-
-                {!uploading && (
-                  <span>→</span>
-                )}
-
-              </button>
-
-            </form>
+            </div>
 
           </section>
 
           {/* =================================================
-              EXISTING CONTENT
+              FILTERS
           ================================================= */}
 
-          <section className="dj-material-card">
+          <section className="cm-filter-panel">
 
-            <div className="dj-material-card-header">
+            <div className="cm-filter">
 
-              <div>
+              <label>
+                COURSE
+              </label>
 
-                <span>
-                  PUBLISHED CONTENT
-                </span>
+              <select
+                value={filterCourse}
+                onChange={(event) =>
+                  setFilterCourse(
+                    event.target.value,
+                  )
+                }
+              >
+                <option value="ALL">
+                  All courses
+                </option>
 
-                <h2>
-                  Course library
-                </h2>
-
-              </div>
-
-              <div className="dj-material-count">
-                {materials?.length || 0}
-              </div>
+                {courses.map(
+                  (course) => (
+                    <option
+                      key={course._id}
+                      value={course.slug}
+                    >
+                      {course.title}
+                    </option>
+                  ),
+                )}
+              </select>
 
             </div>
 
-            {!selectedCourse ? (
-              <div className="dj-material-empty">
-                Select a course to see its
-                materials.
-              </div>
-            ) : materials === undefined ? (
-              <div className="dj-material-empty">
-                Loading course materials...
-              </div>
-            ) : materials.length === 0 ? (
-              <div className="dj-material-empty">
+            <div className="cm-filter">
 
-                <div className="dj-empty-icon">
+              <label>
+                MATERIAL
+              </label>
+
+              <select
+                value={filterType}
+                onChange={(event) =>
+                  setFilterType(
+                    event.target.value,
+                  )
+                }
+              >
+                <option value="ALL">
+                  All materials
+                </option>
+
+                {MATERIAL_OPTIONS.map(
+                  (option) => (
+                    <option
+                      key={
+                        option.value
+                      }
+                      value={
+                        option.value
+                      }
+                    >
+                      {option.label}
+                    </option>
+                  ),
+                )}
+              </select>
+
+            </div>
+
+            <div className="cm-filter">
+
+              <label>
+                SEARCH
+              </label>
+
+              <input
+                value={search}
+                onChange={(event) =>
+                  setSearch(
+                    event.target.value,
+                  )
+                }
+                placeholder="Search materials..."
+              />
+
+            </div>
+
+            <div className="cm-total">
+
+              <span>
+                TOTAL
+              </span>
+
+              <strong>
+                {materialRows.length}
+              </strong>
+
+            </div>
+
+          </section>
+
+          {/* =================================================
+              COURSE SUMMARY
+          ================================================= */}
+
+          <section className="cm-course-summary">
+
+            <div>
+              <span>
+                COURSE LIBRARY
+              </span>
+
+              <h2>
+                Learning content
+              </h2>
+
+              <p>
+                Every material below is
+                attached to a specific course.
+              </p>
+            </div>
+
+            <div className="cm-course-count">
+              {courses.length}
+              <small>
+                Courses
+              </small>
+            </div>
+
+          </section>
+
+          {/* =================================================
+              MATERIAL LIST
+          ================================================= */}
+
+          <section className="cm-library">
+
+            {materialRows.length === 0 ? (
+              <div className="cm-empty">
+
+                <div className="cm-empty-icon">
                   +
                 </div>
 
                 <h3>
-                  No materials yet
+                  No course materials yet
                 </h3>
 
                 <p>
-                  Upload the first class,
-                  PDF or resource for this
-                  course.
+                  Add your first video, PDF,
+                  note or live class.
                 </p>
+
+                <button
+                  type="button"
+                  className="cm-primary-button"
+                  onClick={
+                    openCreate
+                  }
+                >
+                  + Add Course Material
+                </button>
 
               </div>
             ) : (
-              <div className="dj-material-list">
+              <div className="cm-material-list">
 
-                {materials.map(
-                  (material: Material) => (
-                    <MaterialRow
-                      key={material._id}
-                      material={material}
-                      onDelete={
-                        handleDelete
+                {materialRows.map(
+                  (material) => (
+                    <article
+                      key={
+                        material._id
                       }
-                      onToggleStatus={
-                        handleToggleStatus
-                      }
-                    />
-                  )
+                      className="cm-material-row"
+                    >
+
+                      <div className="cm-material-icon">
+                        {normalizeType(
+                          material.type,
+                        ) ===
+                        "RECORDED_CLASS"
+                          ? "▶"
+                          : normalizeType(
+                              material.type,
+                            ) === "PDF"
+                            ? "PDF"
+                            : normalizeType(
+                                material.type,
+                              ) ===
+                              "GOOGLE_MEET"
+                              ? "G"
+                              : normalizeType(
+                                  material.type,
+                                ) ===
+                                "LIVE_CLASS"
+                                ? "LIVE"
+                                : "DOC"}
+                      </div>
+
+                      <div className="cm-material-main">
+
+                        <div className="cm-material-top">
+
+                          <span className="cm-type-badge">
+                            {prettyType(
+                              material.type,
+                            )}
+                          </span>
+
+                          <span
+                            className={
+                              String(
+                                material.status,
+                              ).toUpperCase() ===
+                              "PUBLISHED"
+                                ? "cm-status published"
+                                : "cm-status draft"
+                            }
+                          >
+                            {String(
+                              material.status,
+                            ).toUpperCase()}
+                          </span>
+
+                        </div>
+
+                        <h3>
+                          {material.title}
+                        </h3>
+
+                        <div className="cm-course-name">
+                          Course:
+                          <strong>
+                            {getCourseName(
+                              courses,
+                              material.courseSlug,
+                            )}
+                          </strong>
+                        </div>
+
+                        <div className="cm-slug">
+                          {material.courseSlug}
+                        </div>
+
+                        {material.description && (
+                          <p>
+                            {
+                              material.description
+                            }
+                          </p>
+                        )}
+
+                        <div className="cm-source">
+
+                          {material.storageId ? (
+                            <span>
+                              File uploaded
+                            </span>
+                          ) : material.url ? (
+                            <span>
+                              External link
+                            </span>
+                          ) : (
+                            <span>
+                              No file or link
+                            </span>
+                          )}
+
+                        </div>
+
+                      </div>
+
+                      <div className="cm-material-order">
+                        <span>
+                          ORDER
+                        </span>
+
+                        <strong>
+                          {
+                            material.sortOrder
+                          }
+                        </strong>
+                      </div>
+
+                      <div className="cm-actions">
+
+                        <button
+                          type="button"
+                          onClick={() =>
+                            openEdit(
+                              material,
+                            )
+                          }
+                        >
+                          Edit
+                        </button>
+
+                        <button
+                          type="button"
+                          className="danger"
+                          disabled={
+                            deletingId ===
+                            material._id
+                          }
+                          onClick={() =>
+                            handleDelete(
+                              material._id,
+                            )
+                          }
+                        >
+                          {deletingId ===
+                          material._id
+                            ? "Deleting..."
+                            : "Delete"}
+                        </button>
+
+                      </div>
+
+                    </article>
+                  ),
                 )}
 
               </div>
@@ -871,154 +1327,758 @@ export default function CourseMaterialsAdminPage() {
           </section>
 
         </div>
-
       </main>
 
-      <AdminMaterialStyles />
-    </>
-  );
-}
+      {/* =====================================================
+          MODAL
+      ===================================================== */}
 
-/* =========================================================
-   MATERIAL ROW
-========================================================= */
-
-function MaterialRow({
-  material,
-  onDelete,
-  onToggleStatus,
-}: {
-  material: Material;
-  onDelete: (
-    id: string,
-    title: string
-  ) => void;
-  onToggleStatus: (
-    material: Material
-  ) => void;
-}) {
-  const type = String(
-    material.type || ""
-  ).toUpperCase();
-
-  let icon = "DOC";
-  let label = "RESOURCE";
-
-  if (
-    type === "RECORDED_CLASS" ||
-    type === "VIDEO" ||
-    type === "RECORDING"
-  ) {
-    icon = "▶";
-    label = "RECORDED";
-  } else if (
-    type === "LIVE_CLASS" ||
-    type === "LIVE" ||
-    type === "GOOGLE_MEET"
-  ) {
-    icon = "LIVE";
-    label = "LIVE CLASS";
-  } else if (
-    type === "PDF"
-  ) {
-    icon = "PDF";
-    label = "PDF";
-  } else if (
-    type === "NOTE" ||
-    type === "NOTES"
-  ) {
-    icon = "NOTE";
-    label = "NOTES";
-  }
-
-  const href =
-    material.storageUrl ||
-    material.url ||
-    "";
-
-  return (
-    <article className="dj-material-row">
-
-      <div className="dj-material-row-icon">
-        {icon}
-      </div>
-
-      <div className="dj-material-row-main">
-
-        <div className="dj-material-row-label">
-          {label}
-        </div>
-
-        <h3>
-          {material.title}
-        </h3>
-
-        {material.description && (
-          <p>
-            {material.description}
-          </p>
-        )}
-
-        <div className="dj-material-row-meta">
-
-          <span
-            className={
-              material.status ===
-              "published"
-                ? "published"
-                : "draft"
+      {showModal && (
+        <div
+          className="cm-modal-backdrop"
+          onMouseDown={(event) => {
+            if (
+              event.target ===
+              event.currentTarget
+            ) {
+              closeModal();
             }
-          >
-            {material.status ===
-            "published"
-              ? "Published"
-              : "Draft"}
-          </span>
+          }}
+        >
 
-          {href && (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
+          <div className="cm-modal">
+
+            {/* ===============================================
+                MODAL HEADER
+            =============================================== */}
+
+            <div className="cm-modal-header">
+
+              <div>
+                <div className="cm-eyebrow">
+                  COURSE CONTENT
+                </div>
+
+                <h2>
+                  {editingMaterial
+                    ? "Edit Course Material"
+                    : "Add Course Material"}
+                </h2>
+
+                <p>
+                  Select a course, choose the
+                  content type and upload the
+                  material for that course.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                className="cm-close"
+                onClick={closeModal}
+                disabled={saving}
+              >
+                ×
+              </button>
+
+            </div>
+
+            {/* ===============================================
+                FORM
+            =============================================== */}
+
+            <form
+              className="cm-form"
+              onSubmit={
+                handleSubmit
+              }
             >
-              Open
-            </a>
-          )}
+
+              {/* ===========================================
+                  COURSE
+              =========================================== */}
+
+              <div className="cm-field">
+
+                <label>
+                  Select Course
+                  <span>
+                    *
+                  </span>
+                </label>
+
+                <select
+                  value={courseSlug}
+                  onChange={
+                    handleCourseChange
+                  }
+                  required
+                >
+
+                  <option value="">
+                    Select a course
+                  </option>
+
+                  {courses.map(
+                    (course) => (
+                      <option
+                        key={
+                          course._id
+                        }
+                        value={
+                          course.slug
+                        }
+                      >
+                        {course.title}
+                        {" "}
+                        •
+                        {" "}
+                        {course.category ||
+                          "Course"}
+                      </option>
+                    ),
+                  )}
+
+                </select>
+
+                {courseSlug && (
+                  <small className="cm-help">
+                    Course slug:
+                    {" "}
+                    <strong>
+                      {courseSlug}
+                    </strong>
+                  </small>
+                )}
+
+              </div>
+
+              {/* ===========================================
+                  TITLE
+              =========================================== */}
+
+              <div className="cm-field">
+
+                <label>
+                  Material Title
+                  <span>
+                    *
+                  </span>
+                </label>
+
+                <input
+                  value={title}
+                  onChange={(event) =>
+                    setTitle(
+                      event.target.value,
+                    )
+                  }
+                  placeholder={
+                    type ===
+                    "RECORDED_CLASS"
+                      ? "Predictive Astrology Class 01"
+                      : type === "PDF"
+                        ? "Predictive Astrology Notes - Chapter 01"
+                        : type ===
+                            "LIVE_CLASS"
+                          ? "Live Class - Week 01"
+                          : "Course Resource"
+                  }
+                  required
+                />
+
+              </div>
+
+              {/* ===========================================
+                  MATERIAL TYPE
+              =========================================== */}
+
+              <div className="cm-field">
+
+                <label>
+                  Content Type
+                  <span>
+                    *
+                  </span>
+                </label>
+
+                <select
+                  value={type}
+                  onChange={
+                    handleTypeChange
+                  }
+                  required
+                >
+
+                  {MATERIAL_OPTIONS.map(
+                    (option) => (
+                      <option
+                        key={
+                          option.value
+                        }
+                        value={
+                          option.value
+                        }
+                      >
+                        {option.label}
+                      </option>
+                    ),
+                  )}
+
+                </select>
+
+                {selectedType && (
+                  <small className="cm-help">
+                    {
+                      selectedType.description
+                    }
+                  </small>
+                )}
+
+              </div>
+
+              {/* ===========================================
+                  CONDITIONAL CONTENT AREA
+              =========================================== */}
+
+              {type ===
+                "RECORDED_CLASS" && (
+                <div className="cm-special-box video-box">
+
+                  <div className="cm-special-heading">
+                    <div className="cm-special-icon">
+                      ▶
+                    </div>
+
+                    <div>
+                      <strong>
+                        Recorded Class Video
+                      </strong>
+
+                      <p>
+                        Upload your recorded
+                        class video.
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="cm-upload-label">
+                    Upload Video
+                  </label>
+
+                  <input
+                    type="file"
+                    accept={getFileAccept(
+                      type,
+                    )}
+                    onChange={
+                      handleFileChange
+                    }
+                    className="cm-file"
+                  />
+
+                  {selectedFile && (
+                    <div className="cm-selected-file">
+                      Selected:
+                      {" "}
+                      <strong>
+                        {
+                          selectedFile.name
+                        }
+                      </strong>
+                    </div>
+                  )}
+
+                  <div className="cm-or">
+                    OR
+                  </div>
+
+                  <input
+                    value={
+                      externalUrl
+                    }
+                    onChange={(event) =>
+                      setExternalUrl(
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="Optional YouTube / Drive / video URL"
+                  />
+
+                </div>
+              )}
+
+              {type === "PDF" && (
+                <div className="cm-special-box pdf-box">
+
+                  <div className="cm-special-heading">
+                    <div className="cm-special-icon">
+                      PDF
+                    </div>
+
+                    <div>
+                      <strong>
+                        Course PDF
+                      </strong>
+
+                      <p>
+                        Upload the PDF that
+                        students should access.
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="cm-upload-label">
+                    Upload PDF
+                  </label>
+
+                  <input
+                    type="file"
+                    accept="application/pdf"
+                    onChange={
+                      handleFileChange
+                    }
+                    className="cm-file"
+                  />
+
+                  {selectedFile && (
+                    <div className="cm-selected-file">
+                      Selected:
+                      {" "}
+                      <strong>
+                        {
+                          selectedFile.name
+                        }
+                      </strong>
+                    </div>
+                  )}
+
+                  <div className="cm-or">
+                    OR
+                  </div>
+
+                  <input
+                    value={
+                      externalUrl
+                    }
+                    onChange={(event) =>
+                      setExternalUrl(
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="Optional external PDF / Drive URL"
+                  />
+
+                </div>
+              )}
+
+              {type === "NOTE" && (
+                <div className="cm-special-box note-box">
+
+                  <div className="cm-special-heading">
+                    <div className="cm-special-icon">
+                      DOC
+                    </div>
+
+                    <div>
+                      <strong>
+                        Study Notes
+                      </strong>
+
+                      <p>
+                        Upload notes,
+                        worksheets or study
+                        documents.
+                      </p>
+                    </div>
+                  </div>
+
+                  <label className="cm-upload-label">
+                    Upload Notes
+                  </label>
+
+                  <input
+                    type="file"
+                    accept={getFileAccept(
+                      type,
+                    )}
+                    onChange={
+                      handleFileChange
+                    }
+                    className="cm-file"
+                  />
+
+                  {selectedFile && (
+                    <div className="cm-selected-file">
+                      Selected:
+                      {" "}
+                      <strong>
+                        {
+                          selectedFile.name
+                        }
+                      </strong>
+                    </div>
+                  )}
+
+                  <div className="cm-or">
+                    OR
+                  </div>
+
+                  <input
+                    value={
+                      externalUrl
+                    }
+                    onChange={(event) =>
+                      setExternalUrl(
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="Optional Google Drive / document URL"
+                  />
+
+                </div>
+              )}
+
+              {(type ===
+                "LIVE_CLASS" ||
+                type ===
+                  "GOOGLE_MEET") && (
+                <div className="cm-special-box live-box">
+
+                  <div className="cm-special-heading">
+
+                    <div className="cm-special-icon live">
+                      LIVE
+                    </div>
+
+                    <div>
+                      <strong>
+                        Live Class
+                      </strong>
+
+                      <p>
+                        Students will use
+                        this link to join the
+                        live class.
+                      </p>
+                    </div>
+
+                  </div>
+
+                  <label className="cm-upload-label">
+                    Google Meet Link
+                    <span>
+                      *
+                    </span>
+                  </label>
+
+                  <input
+                    type="url"
+                    value={
+                      externalUrl
+                    }
+                    onChange={(event) =>
+                      setExternalUrl(
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="https://meet.google.com/..."
+                    required
+                  />
+
+                  <div className="cm-live-tip">
+                    Example:
+                    {" "}
+                    https://meet.google.com/abc-defg-hij
+                  </div>
+
+                </div>
+              )}
+
+              {type ===
+                "VIDEO_LINK" && (
+                <div className="cm-special-box video-box">
+
+                  <div className="cm-special-heading">
+
+                    <div className="cm-special-icon">
+                      ▶
+                    </div>
+
+                    <div>
+                      <strong>
+                        External Video
+                      </strong>
+
+                      <p>
+                        Add a YouTube,
+                        Vimeo or Google
+                        Drive video URL.
+                      </p>
+                    </div>
+
+                  </div>
+
+                  <label className="cm-upload-label">
+                    Video URL
+                    <span>
+                      *
+                    </span>
+                  </label>
+
+                  <input
+                    type="url"
+                    value={
+                      externalUrl
+                    }
+                    onChange={(event) =>
+                      setExternalUrl(
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="https://youtube.com/..."
+                    required
+                  />
+
+                </div>
+              )}
+
+              {type === "RESOURCE" && (
+                <div className="cm-special-box">
+
+                  <div className="cm-special-heading">
+
+                    <div className="cm-special-icon">
+                      +
+                    </div>
+
+                    <div>
+                      <strong>
+                        Other Course Resource
+                      </strong>
+
+                      <p>
+                        Upload a file or
+                        provide an external
+                        resource URL.
+                      </p>
+                    </div>
+
+                  </div>
+
+                  <label className="cm-upload-label">
+                    Upload Resource
+                  </label>
+
+                  <input
+                    type="file"
+                    accept="*/*"
+                    onChange={
+                      handleFileChange
+                    }
+                    className="cm-file"
+                  />
+
+                  {selectedFile && (
+                    <div className="cm-selected-file">
+                      Selected:
+                      {" "}
+                      <strong>
+                        {
+                          selectedFile.name
+                        }
+                      </strong>
+                    </div>
+                  )}
+
+                  <div className="cm-or">
+                    OR
+                  </div>
+
+                  <input
+                    value={
+                      externalUrl
+                    }
+                    onChange={(event) =>
+                      setExternalUrl(
+                        event.target
+                          .value,
+                      )
+                    }
+                    placeholder="https://..."
+                  />
+
+                </div>
+              )}
+
+              {/* ===========================================
+                  DESCRIPTION
+              =========================================== */}
+
+              <div className="cm-field">
+
+                <label>
+                  Description
+                </label>
+
+                <textarea
+                  value={
+                    description
+                  }
+                  onChange={(event) =>
+                    setDescription(
+                      event.target
+                        .value,
+                    )
+                  }
+                  rows={4}
+                  placeholder="Explain what students will find in this material..."
+                />
+
+              </div>
+
+              {/* ===========================================
+                  ORDER + STATUS
+              =========================================== */}
+
+              <div className="cm-two-columns">
+
+                <div className="cm-field">
+
+                  <label>
+                    Display Order
+                  </label>
+
+                  <input
+                    type="number"
+                    min="0"
+                    value={
+                      sortOrder
+                    }
+                    onChange={(event) =>
+                      setSortOrder(
+                        event.target
+                          .value,
+                      )
+                    }
+                  />
+
+                  <small className="cm-help">
+                    0 appears first.
+                  </small>
+
+                </div>
+
+                <div className="cm-field">
+
+                  <label>
+                    Publishing Status
+                    <span>
+                      *
+                    </span>
+                  </label>
+
+                  <select
+                    value={
+                      status
+                    }
+                    onChange={(event) =>
+                      setStatus(
+                        event.target
+                          .value as
+                          | "DRAFT"
+                          | "PUBLISHED",
+                      )
+                    }
+                  >
+                    <option value="DRAFT">
+                      Draft
+                    </option>
+
+                    <option value="PUBLISHED">
+                      Published
+                    </option>
+                  </select>
+
+                  <small className="cm-help">
+                    Only published
+                    materials appear to
+                    students.
+                  </small>
+
+                </div>
+
+              </div>
+
+              {/* ===========================================
+                  ERROR
+              =========================================== */}
+
+              {error && (
+                <div className="cm-alert error">
+                  {error}
+                </div>
+              )}
+
+              {/* ===========================================
+                  SUCCESS
+              =========================================== */}
+
+              {success && (
+                <div className="cm-alert success">
+                  {success}
+                </div>
+              )}
+
+              {/* ===========================================
+                  ACTIONS
+              =========================================== */}
+
+              <div className="cm-form-actions">
+
+                <button
+                  type="button"
+                  className="cm-secondary-button"
+                  onClick={
+                    closeModal
+                  }
+                  disabled={saving}
+                >
+                  Cancel
+                </button>
+
+                <button
+                  type="submit"
+                  className="cm-primary-button"
+                  disabled={
+                    saving ||
+                    courses.length ===
+                      0
+                  }
+                >
+                  {saving
+                    ? "Saving..."
+                    : editingMaterial
+                      ? "Update Material"
+                      : "Save Course Material"}
+                </button>
+
+              </div>
+
+            </form>
+
+          </div>
 
         </div>
+      )}
 
-      </div>
-
-      <div className="dj-material-row-actions">
-
-        <button
-          type="button"
-          onClick={() =>
-            onToggleStatus(material)
-          }
-        >
-          {material.status ===
-          "published"
-            ? "Draft"
-            : "Publish"}
-        </button>
-
-        <button
-          type="button"
-          className="danger"
-          onClick={() =>
-            onDelete(
-              material._id,
-              material.title
-            )
-          }
-        >
-          Delete
-        </button>
-
-      </div>
-
-    </article>
+      <CourseMaterialsStyles />
+    </>
   );
 }
 
@@ -1026,659 +2086,749 @@ function MaterialRow({
    STYLES
 ========================================================= */
 
-function AdminMaterialStyles() {
+function CourseMaterialsStyles() {
   return (
     <style jsx global>{`
-
-      .dj-admin-loading {
+      .cm-page {
         min-height: 100vh;
-        display: grid;
-        place-items: center;
-        background: #f8f5ee;
-        color: #17263b;
-        font-size: 14px;
+        background: #f5f7fa;
+        color: #132238;
+        padding: 50px 0 100px;
       }
 
-      .dj-material-page {
-        min-height: 100vh;
-        padding:
-          110px
-          42px
-          90px;
-        background: #f8f5ee;
-        color: #142238;
+      .cm-container {
+        width: min(1380px, calc(100% - 60px));
+        margin: 0 auto;
       }
 
-      .dj-material-header {
-        width: min(
-          1250px,
-          100%
-        );
-        margin: 0 auto 30px;
-
+      .cm-header {
         display: flex;
         align-items: flex-end;
         justify-content: space-between;
-        gap: 30px;
+        gap: 40px;
+        margin-bottom: 38px;
       }
 
-      .dj-material-eyebrow {
-        color: #b27b2e;
-        font-size: 10px;
+      .cm-eyebrow {
+        color: #c87812;
+        font-size: 12px;
         font-weight: 900;
-        letter-spacing: .2em;
-        margin-bottom: 10px;
+        letter-spacing: 2.4px;
+        text-transform: uppercase;
+        margin-bottom: 12px;
       }
 
-      .dj-material-header h1 {
+      .cm-header h1 {
         margin: 0;
-        font-family:
-          Georgia,
-          "Times New Roman",
-          serif;
-        font-size: clamp(
-          42px,
-          5vw,
-          65px
-        );
-        font-weight: 500;
-        letter-spacing: -.04em;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: clamp(42px, 5vw, 68px);
         line-height: 1;
+        font-weight: 500;
+        letter-spacing: -2px;
       }
 
-      .dj-material-header p {
-        max-width: 620px;
-        margin: 14px 0 0;
-        color: #718096;
-        font-size: 14px;
+      .cm-header p {
+        max-width: 720px;
+        margin: 18px 0 0;
+        color: #708096;
+        font-size: 17px;
         line-height: 1.7;
       }
 
-      .dj-material-header-badge {
-        padding: 11px 14px;
-        border:
-          1px solid #ddd4c6;
-        background: white;
-        color: #8e6b3e;
-        font-size: 9px;
-        font-weight: 900;
-        letter-spacing: .14em;
-        white-space: nowrap;
-      }
-
-      /* =====================================================
-         COURSE SELECTOR
-      ===================================================== */
-
-      .dj-material-course-selector {
-        width: min(
-          1250px,
-          100%
-        );
-        margin: 0 auto 18px;
-
-        padding: 18px 20px;
-
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 25px;
-
-        background: white;
-        border:
-          1px solid #e3dbcf;
-      }
-
-      .dj-material-selector-copy span {
-        display: block;
-        color: #b27b2e;
-        font-size: 8px;
-        font-weight: 900;
-        letter-spacing: .16em;
-        margin-bottom: 5px;
-      }
-
-      .dj-material-selector-copy strong {
-        font-size: 13px;
-        font-weight: 700;
-      }
-
-      .dj-material-course-selector select {
-        min-width: 350px;
-        padding: 13px 15px;
-        border:
-          1px solid #d9d0c3;
-        background: #faf8f3;
-        color: #17263b;
-        font-size: 13px;
-        font-weight: 700;
-        outline: none;
-      }
-
-      /* =====================================================
-         MESSAGES
-      ===================================================== */
-
-      .dj-material-success,
-      .dj-material-error {
-        width: min(
-          1250px,
-          100%
-        );
-        margin: 0 auto 16px;
-
-        padding: 13px 16px;
-
-        display: flex;
-        align-items: center;
-        gap: 10px;
-
-        font-size: 12px;
-        font-weight: 700;
-      }
-
-      .dj-material-success {
-        background: #edf8f1;
-        border: 1px solid #cde5d6;
-        color: #24714b;
-      }
-
-      .dj-material-error {
-        background: #fff0ef;
-        border: 1px solid #f0c8c5;
-        color: #b43b35;
-      }
-
-      .dj-material-success span,
-      .dj-material-error span {
-        width: 22px;
-        height: 22px;
-        display: grid;
-        place-items: center;
-        border-radius: 50%;
-        background: white;
-      }
-
-      /* =====================================================
-         GRID
-      ===================================================== */
-
-      .dj-material-grid {
-        width: min(
-          1250px,
-          100%
-        );
-        margin: 0 auto;
-
-        display: grid;
-
-        grid-template-columns:
-          420px
-          minmax(0, 1fr);
-
-        gap: 20px;
-
-        align-items: start;
-      }
-
-      .dj-material-card {
-        background: white;
-        border:
-          1px solid #e2dbd0;
-      }
-
-      .dj-material-card-header {
-        padding: 22px;
-        border-bottom:
-          1px solid #ebe4da;
-
-        display: flex;
-        align-items: flex-start;
-        justify-content: space-between;
-        gap: 15px;
-      }
-
-      .dj-material-card-header > div:first-child span {
-        display: block;
-        color: #b27b2e;
-        font-size: 8px;
-        font-weight: 900;
-        letter-spacing: .16em;
-        margin-bottom: 7px;
-      }
-
-      .dj-material-card-header h2 {
-        margin: 0;
-        font-family:
-          Georgia,
-          serif;
-        font-size: 25px;
-        font-weight: 500;
-        line-height: 1.1;
-      }
-
-      .dj-material-current-course {
-        max-width: 180px;
-        padding: 8px 10px;
-        background: #f7f0e4;
-        color: #8e672e;
-        font-size: 9px;
-        font-weight: 800;
-        line-height: 1.4;
-      }
-
-      .dj-material-count {
-        width: 34px;
-        height: 34px;
-
-        display: grid;
-        place-items: center;
-
-        border:
-          1px solid #e0d8cc;
-        border-radius: 50%;
-
-        color: #8e6b3e;
-        font-size: 10px;
-        font-weight: 900;
-      }
-
-      /* =====================================================
-         FORM
-      ===================================================== */
-
-      .dj-material-form {
-        padding: 22px;
-      }
-
-      .dj-field {
-        margin-bottom: 17px;
-      }
-
-      .dj-field label {
-        display: flex;
-        justify-content: space-between;
-        gap: 10px;
-
-        margin-bottom: 7px;
-
-        color: #26374c;
-        font-size: 10px;
-        font-weight: 800;
-      }
-
-      .dj-field label span {
-        color: #9ba5b1;
-        font-weight: 600;
-      }
-
-      .dj-field input,
-      .dj-field textarea,
-      .dj-field select {
-        width: 100%;
-        box-sizing: border-box;
-
-        padding: 12px 13px;
-
-        border:
-          1px solid #ddd5c9;
-
-        background: #fcfbf8;
-
-        color: #17263b;
-
-        font-family: inherit;
-        font-size: 12px;
-
-        outline: none;
-
-        transition:
-          border-color .2s ease,
-          box-shadow .2s ease;
-      }
-
-      .dj-field textarea {
-        resize: vertical;
-        min-height: 95px;
-      }
-
-      .dj-field input:focus,
-      .dj-field textarea:focus,
-      .dj-field select:focus {
-        border-color: #b68a4a;
-
-        box-shadow:
-          0 0 0 3px
-          rgba(182,138,74,.1);
-      }
-
-      .dj-field-help {
-        display: block;
-        margin-top: 6px;
-        color: #8b96a4;
-        font-size: 9px;
-        line-height: 1.5;
-      }
-
-      /* =====================================================
-         FILE DROP
-      ===================================================== */
-
-      .dj-file-drop {
-        min-height: 145px;
-
-        display: flex !important;
-        flex-direction: column;
-        align-items: center;
-        justify-content: center;
-
-        padding: 18px;
-
-        border:
-          1px dashed #cfc5b6 !important;
-
-        background:
-          #faf8f3 !important;
-
-        text-align: center;
-
-        cursor: pointer;
-
-        transition:
-          border-color .2s ease,
-          background .2s ease;
-      }
-
-      .dj-file-drop:hover {
-        border-color:
-          #b8894b !important;
-
-        background:
-          #f8f2e8 !important;
-      }
-
-      .dj-file-drop input {
-        display: none;
-      }
-
-      .dj-file-icon {
-        width: 38px;
-        height: 38px;
-
-        display: grid;
-        place-items: center;
-
-        margin-bottom: 9px;
-
-        border-radius: 10px;
-
-        background: #f3e7d1;
-
-        color: #a96f1d;
-
-        font-size: 20px;
-        font-weight: 400;
-      }
-
-      .dj-file-drop strong {
-        color: #26374c;
-        font-size: 12px;
-      }
-
-      .dj-file-drop > span {
-        max-width: 300px;
-        margin-top: 5px;
-        color: #8994a3;
-        font-size: 9px;
-        line-height: 1.5;
-      }
-
-      /* =====================================================
-         SUBMIT
-      ===================================================== */
-
-      .dj-material-submit {
-        width: 100%;
-
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        gap: 10px;
-
-        margin-top: 5px;
-
-        padding: 14px 18px;
-
+      .cm-primary-button {
+        min-height: 52px;
         border: 0;
-
-        background: #102039;
-
+        border-radius: 10px;
+        padding: 0 22px;
+        background: #101c31;
         color: white;
-
-        font-size: 11px;
         font-weight: 800;
-
+        font-size: 14px;
         cursor: pointer;
-
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        box-shadow: 0 12px 25px rgba(16, 28, 49, 0.16);
         transition:
-          background .2s ease,
-          transform .2s ease;
+          transform 0.2s ease,
+          background 0.2s ease;
       }
 
-      .dj-material-submit:hover {
-        background: #1a3150;
+      .cm-primary-button:hover {
+        background: #182a46;
         transform: translateY(-1px);
       }
 
-      .dj-material-submit:disabled {
-        opacity: .55;
+      .cm-primary-button:disabled {
+        opacity: 0.55;
         cursor: not-allowed;
         transform: none;
       }
 
-      /* =====================================================
-         LIST
-      ===================================================== */
+      .cm-plus {
+        font-size: 20px;
+        line-height: 1;
+      }
 
-      .dj-material-list {
+      .cm-info-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        border: 1px solid #dde3eb;
+        background: white;
+        margin-bottom: 28px;
+      }
+
+      .cm-info-card {
+        min-height: 145px;
+        padding: 28px 30px;
+        display: flex;
+        gap: 20px;
+        border-right: 1px solid #dde3eb;
+      }
+
+      .cm-info-card:last-child {
+        border-right: 0;
+      }
+
+      .cm-info-number {
+        color: #c87812;
+        font-size: 13px;
+        font-weight: 900;
+        letter-spacing: 1px;
+      }
+
+      .cm-info-card strong {
+        display: block;
+        font-size: 18px;
+        margin-bottom: 8px;
+      }
+
+      .cm-info-card p {
+        margin: 0;
+        color: #718096;
+        line-height: 1.6;
+        font-size: 14px;
+      }
+
+      .cm-filter-panel {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr 130px;
+        gap: 16px;
+        background: white;
+        border: 1px solid #dde3eb;
+        padding: 22px;
+        margin-bottom: 28px;
+      }
+
+      .cm-filter {
+        min-width: 0;
+      }
+
+      .cm-filter label {
+        display: block;
+        margin-bottom: 8px;
+        color: #75859b;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 1.6px;
+      }
+
+      .cm-filter select,
+      .cm-filter input {
+        width: 100%;
+        height: 48px;
+        border: 1px solid #d4dce6;
+        border-radius: 8px;
+        background: white;
+        padding: 0 14px;
+        color: #1a2940;
+        font-size: 14px;
+        outline: none;
+      }
+
+      .cm-filter select:focus,
+      .cm-filter input:focus {
+        border-color: #b9781e;
+        box-shadow: 0 0 0 3px rgba(185, 120, 30, 0.08);
+      }
+
+      .cm-total {
         display: flex;
         flex-direction: column;
+        justify-content: center;
+        align-items: flex-end;
       }
 
-      .dj-material-row {
-        padding: 17px 20px;
-
-        display: flex;
-        align-items: flex-start;
-        gap: 13px;
-
-        border-bottom:
-          1px solid #eee8df;
-      }
-
-      .dj-material-row:last-child {
-        border-bottom: 0;
-      }
-
-      .dj-material-row-icon {
-        width: 45px;
-        height: 45px;
-
-        flex: 0 0 45px;
-
-        display: grid;
-        place-items: center;
-
-        background: #f7efe1;
-
-        color: #a87331;
-
-        font-size: 8px;
-        font-weight: 900;
-      }
-
-      .dj-material-row-main {
-        min-width: 0;
-        flex: 1;
-      }
-
-      .dj-material-row-label {
-        color: #b27b2e;
-        font-size: 7px;
-        font-weight: 900;
-        letter-spacing: .14em;
-      }
-
-      .dj-material-row h3 {
-        margin: 4px 0 0;
-
-        color: #18283e;
-
-        font-size: 13px;
-        font-weight: 800;
-      }
-
-      .dj-material-row p {
-        margin: 4px 0 0;
-
-        color: #8490a0;
-
+      .cm-total span {
+        color: #8391a3;
         font-size: 10px;
-        line-height: 1.5;
-      }
-
-      .dj-material-row-meta {
-        display: flex;
-        align-items: center;
-        flex-wrap: wrap;
-        gap: 8px;
-
-        margin-top: 8px;
-      }
-
-      .dj-material-row-meta span {
-        padding: 4px 7px;
-
-        font-size: 7px;
+        letter-spacing: 1.7px;
         font-weight: 900;
-        letter-spacing: .05em;
+      }
+
+      .cm-total strong {
+        margin-top: 4px;
+        font-size: 28px;
+      }
+
+      .cm-course-summary {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        background: #101c31;
+        color: white;
+        padding: 32px 36px;
+        margin-bottom: 18px;
+      }
+
+      .cm-course-summary > div:first-child span {
+        color: #d59643;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 2px;
+      }
+
+      .cm-course-summary h2 {
+        margin: 8px 0 5px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 32px;
+        font-weight: 500;
+      }
+
+      .cm-course-summary p {
+        margin: 0;
+        color: #aeb9c8;
+        font-size: 14px;
+      }
+
+      .cm-course-count {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        background: rgba(255, 255, 255, 0.08);
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        font-size: 26px;
+        font-weight: 900;
+      }
+
+      .cm-course-count small {
+        font-size: 9px;
+        letter-spacing: 1px;
+        color: #aeb9c8;
         text-transform: uppercase;
       }
 
-      .dj-material-row-meta span.published {
-        background: #edf8f1;
-        color: #24714b;
+      .cm-library {
+        background: white;
+        border: 1px solid #dde3eb;
       }
 
-      .dj-material-row-meta span.draft {
-        background: #f5eee3;
-        color: #96703c;
-      }
-
-      .dj-material-row-meta a {
-        color: #52647a;
-        font-size: 9px;
-        font-weight: 800;
-      }
-
-      .dj-material-row-actions {
+      .cm-material-list {
         display: flex;
         flex-direction: column;
-        gap: 6px;
       }
 
-      .dj-material-row-actions button {
-        min-width: 65px;
+      .cm-material-row {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr) 80px auto;
+        align-items: center;
+        gap: 22px;
+        padding: 25px 28px;
+        border-bottom: 1px solid #e7ebf0;
+      }
 
-        padding: 7px 8px;
+      .cm-material-row:last-child {
+        border-bottom: 0;
+      }
 
-        border:
-          1px solid #ded6ca;
+      .cm-material-icon {
+        width: 58px;
+        height: 58px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: #f8efe1;
+        color: #b9781e;
+        font-size: 11px;
+        font-weight: 900;
+        letter-spacing: 0.5px;
+      }
 
-        background: white;
+      .cm-material-main {
+        min-width: 0;
+      }
 
-        color: #536276;
+      .cm-material-top {
+        display: flex;
+        gap: 8px;
+        align-items: center;
+        margin-bottom: 7px;
+      }
 
-        font-size: 8px;
+      .cm-type-badge {
+        display: inline-flex;
+        padding: 5px 9px;
+        border-radius: 5px;
+        background: #edf2f7;
+        color: #33465e;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.8px;
+        text-transform: uppercase;
+      }
+
+      .cm-status {
+        display: inline-flex;
+        padding: 5px 9px;
+        border-radius: 5px;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 0.8px;
+      }
+
+      .cm-status.published {
+        color: #18734a;
+        background: #eaf7f0;
+      }
+
+      .cm-status.draft {
+        color: #8a6a20;
+        background: #fff7df;
+      }
+
+      .cm-material-main h3 {
+        margin: 0;
+        font-size: 19px;
+        line-height: 1.35;
+      }
+
+      .cm-course-name {
+        margin-top: 7px;
+        color: #718096;
+        font-size: 13px;
+      }
+
+      .cm-course-name strong {
+        margin-left: 5px;
+        color: #24354c;
+      }
+
+      .cm-slug {
+        display: inline-block;
+        margin-top: 6px;
+        color: #a0acba;
+        font-size: 11px;
+        font-family: monospace;
+      }
+
+      .cm-material-main p {
+        margin: 9px 0 0;
+        color: #718096;
+        font-size: 13px;
+        line-height: 1.55;
+      }
+
+      .cm-source {
+        margin-top: 8px;
+        color: #9a6d29;
+        font-size: 12px;
         font-weight: 800;
+      }
 
+      .cm-material-order {
+        text-align: center;
+      }
+
+      .cm-material-order span {
+        display: block;
+        color: #98a4b3;
+        font-size: 9px;
+        font-weight: 900;
+        letter-spacing: 1.5px;
+      }
+
+      .cm-material-order strong {
+        display: block;
+        margin-top: 4px;
+        font-size: 20px;
+      }
+
+      .cm-actions {
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+      }
+
+      .cm-actions button {
+        height: 36px;
+        min-width: 75px;
+        padding: 0 12px;
+        border: 1px solid #d6dee8;
+        border-radius: 6px;
+        background: white;
+        color: #23344d;
+        font-weight: 800;
         cursor: pointer;
       }
 
-      .dj-material-row-actions button:hover {
-        background: #f7f3ed;
+      .cm-actions button:hover {
+        background: #f5f7fa;
       }
 
-      .dj-material-row-actions button.danger {
-        border-color: #efd1ce;
-        color: #b54740;
+      .cm-actions button.danger {
+        color: #a23a3a;
+        border-color: #edd2d2;
       }
 
-      .dj-material-row-actions button.danger:hover {
-        background: #fff2f1;
+      .cm-actions button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
       }
 
-      /* =====================================================
-         EMPTY
-      ===================================================== */
-
-      .dj-material-empty {
-        min-height: 300px;
-
+      .cm-empty {
+        min-height: 430px;
         display: flex;
         flex-direction: column;
         align-items: center;
         justify-content: center;
-
-        padding: 35px;
-
         text-align: center;
-
-        color: #7f8b99;
-
-        font-size: 11px;
+        padding: 40px;
       }
 
-      .dj-empty-icon {
-        width: 42px;
-        height: 42px;
-
-        display: grid;
-        place-items: center;
-
-        margin-bottom: 12px;
-
-        border-radius: 12px;
-
-        background: #f6ecd9;
-
-        color: #b87820;
-
-        font-size: 23px;
+      .cm-empty-icon {
+        width: 62px;
+        height: 62px;
+        border-radius: 16px;
+        background: #fff5e7;
+        color: #c87812;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 32px;
+        margin-bottom: 20px;
       }
 
-      .dj-material-empty h3 {
+      .cm-empty h3 {
         margin: 0;
-
-        color: #1c2c42;
-
-        font-family:
-          Georgia,
-          serif;
-
-        font-size: 22px;
+        font-family: Georgia, "Times New Roman", serif;
+        font-size: 30px;
         font-weight: 500;
       }
 
-      .dj-material-empty p {
-        max-width: 330px;
+      .cm-empty p {
+        color: #78869a;
+        margin: 10px 0 24px;
+      }
 
-        margin: 7px 0 0;
+      /* =====================================================
+         MODAL
+      ===================================================== */
 
-        color: #8a95a3;
+      .cm-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        background: rgba(12, 24, 42, 0.58);
+        backdrop-filter: blur(8px);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        padding: 30px;
+        overflow-y: auto;
+      }
 
-        font-size: 10px;
+      .cm-modal {
+        width: min(880px, 100%);
+        max-height: calc(100vh - 60px);
+        overflow-y: auto;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 35px 100px rgba(0, 0, 0, 0.28);
+      }
+
+      .cm-modal-header {
+        position: sticky;
+        top: 0;
+        z-index: 2;
+        background: white;
+        border-bottom: 1px solid #e6ebf0;
+        padding: 28px 32px;
+        display: flex;
+        justify-content: space-between;
+        gap: 25px;
+      }
+
+      .cm-modal-header h2 {
+        margin: 0;
+        font-size: 27px;
+      }
+
+      .cm-modal-header p {
+        margin: 8px 0 0;
+        color: #78869a;
+        line-height: 1.5;
+        font-size: 14px;
+      }
+
+      .cm-close {
+        width: 44px;
+        height: 44px;
+        flex: 0 0 44px;
+        border: 0;
+        border-radius: 10px;
+        background: #f1f4f7;
+        color: #617188;
+        font-size: 29px;
+        cursor: pointer;
+        line-height: 1;
+      }
+
+      .cm-close:hover {
+        background: #e7ebf0;
+      }
+
+      .cm-form {
+        padding: 30px 32px 34px;
+      }
+
+      .cm-field {
+        margin-bottom: 22px;
+      }
+
+      .cm-field label,
+      .cm-upload-label {
+        display: block;
+        margin-bottom: 8px;
+        color: #28374c;
+        font-size: 12px;
+        font-weight: 900;
+      }
+
+      .cm-field label span,
+      .cm-upload-label span {
+        color: #bd6514;
+        margin-left: 4px;
+      }
+
+      .cm-field input,
+      .cm-field select,
+      .cm-field textarea,
+      .cm-special-box input {
+        width: 100%;
+        border: 1px solid #d2dbe6;
+        border-radius: 9px;
+        background: white;
+        color: #1b2b42;
+        font-size: 15px;
+        outline: none;
+        transition: border-color 0.2s ease;
+      }
+
+      .cm-field input,
+      .cm-field select,
+      .cm-special-box input {
+        height: 52px;
+        padding: 0 15px;
+      }
+
+      .cm-field textarea {
+        padding: 14px 15px;
+        resize: vertical;
         line-height: 1.6;
+      }
+
+      .cm-field input:focus,
+      .cm-field select:focus,
+      .cm-field textarea:focus,
+      .cm-special-box input:focus {
+        border-color: #bd7b2c;
+        box-shadow: 0 0 0 3px rgba(189, 123, 44, 0.08);
+      }
+
+      .cm-help {
+        display: block;
+        margin-top: 7px;
+        color: #8995a6;
+        font-size: 11px;
+        line-height: 1.5;
+      }
+
+      .cm-two-columns {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+      }
+
+      /* =====================================================
+         SPECIAL CONTENT BOX
+      ===================================================== */
+
+      .cm-special-box {
+        margin-bottom: 24px;
+        padding: 22px;
+        border: 1px solid #dce3eb;
+        border-radius: 12px;
+        background: #f9fafc;
+      }
+
+      .cm-special-heading {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+        margin-bottom: 20px;
+      }
+
+      .cm-special-icon {
+        width: 48px;
+        height: 48px;
+        flex: 0 0 48px;
+        border-radius: 10px;
+        background: #fff0dd;
+        color: #b96f18;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 11px;
+        font-weight: 900;
+      }
+
+      .cm-special-icon.live {
+        background: #eaf8f1;
+        color: #17764b;
+      }
+
+      .cm-special-heading strong {
+        display: block;
+        font-size: 15px;
+      }
+
+      .cm-special-heading p {
+        margin: 4px 0 0;
+        color: #7d8999;
+        font-size: 12px;
+      }
+
+      .cm-file {
+        width: 100%;
+        padding: 14px;
+        border: 1px dashed #c8d2df;
+        border-radius: 8px;
+        background: white;
+        color: #45566e;
+      }
+
+      .cm-selected-file {
+        margin-top: 10px;
+        padding: 10px 12px;
+        background: #edf8f2;
+        border-radius: 7px;
+        color: #26734e;
+        font-size: 12px;
+      }
+
+      .cm-or {
+        margin: 17px 0;
+        text-align: center;
+        color: #a0a9b5;
+        font-size: 10px;
+        font-weight: 900;
+        letter-spacing: 1.5px;
+      }
+
+      .cm-live-tip {
+        margin-top: 9px;
+        color: #7b8797;
+        font-size: 11px;
+      }
+
+      /* =====================================================
+         ALERTS
+      ===================================================== */
+
+      .cm-alert {
+        padding: 13px 15px;
+        border-radius: 8px;
+        margin-bottom: 18px;
+        font-size: 13px;
+        font-weight: 700;
+      }
+
+      .cm-alert.error {
+        color: #9e3737;
+        background: #fff0f0;
+        border: 1px solid #f0d2d2;
+      }
+
+      .cm-alert.success {
+        color: #176d47;
+        background: #ecf8f1;
+        border: 1px solid #cde8d9;
+      }
+
+      .cm-form-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 12px;
+        padding-top: 10px;
+        border-top: 1px solid #e8edf2;
+      }
+
+      .cm-secondary-button {
+        min-height: 52px;
+        padding: 0 20px;
+        border: 1px solid #d3dce7;
+        border-radius: 9px;
+        background: white;
+        color: #33445b;
+        font-weight: 800;
+        cursor: pointer;
+      }
+
+      .cm-secondary-button:hover {
+        background: #f6f8fa;
+      }
+
+      .cm-secondary-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+
+      .cm-loading-page {
+        min-height: 650px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        text-align: center;
+      }
+
+      .cm-loader {
+        width: 42px;
+        height: 42px;
+        border: 4px solid #e8edf3;
+        border-top-color: #b9781e;
+        border-radius: 50%;
+        animation: cm-spin 0.8s linear infinite;
+        margin-bottom: 20px;
+      }
+
+      .cm-loading-page h2 {
+        margin: 0;
+        font-size: 22px;
+      }
+
+      .cm-loading-page p {
+        color: #7a8798;
+      }
+
+      @keyframes cm-spin {
+        to {
+          transform: rotate(360deg);
+        }
       }
 
       /* =====================================================
@@ -1686,62 +2836,126 @@ function AdminMaterialStyles() {
       ===================================================== */
 
       @media (max-width: 1050px) {
-
-        .dj-material-grid {
-          grid-template-columns: 1fr;
+        .cm-filter-panel {
+          grid-template-columns: 1fr 1fr;
         }
 
-      }
-
-      @media (max-width: 700px) {
-
-        .dj-material-page {
-          padding:
-            90px
-            16px
-            60px;
-        }
-
-        .dj-material-header {
-          flex-direction: column;
+        .cm-total {
           align-items: flex-start;
         }
 
-        .dj-material-header-badge {
+        .cm-material-row {
+          grid-template-columns: 60px minmax(0, 1fr) auto;
+        }
+
+        .cm-material-order {
           display: none;
         }
 
-        .dj-material-course-selector {
-          flex-direction: column;
-          align-items: stretch;
-        }
-
-        .dj-material-course-selector select {
-          min-width: 0;
-          width: 100%;
-        }
-
-        .dj-material-row {
-          flex-wrap: wrap;
-        }
-
-        .dj-material-row-main {
-          width:
-            calc(100% - 58px);
-        }
-
-        .dj-material-row-actions {
-          width: 100%;
+        .cm-actions {
           flex-direction: row;
-          padding-left: 58px;
         }
-
-        .dj-material-row-actions button {
-          flex: 1;
-        }
-
       }
 
+      @media (max-width: 800px) {
+        .cm-container {
+          width: min(100% - 30px, 680px);
+        }
+
+        .cm-page {
+          padding-top: 30px;
+        }
+
+        .cm-header {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .cm-info-grid {
+          grid-template-columns: 1fr;
+        }
+
+        .cm-info-card {
+          border-right: 0;
+          border-bottom: 1px solid #dde3eb;
+        }
+
+        .cm-info-card:last-child {
+          border-bottom: 0;
+        }
+
+        .cm-course-summary {
+          align-items: flex-start;
+          gap: 20px;
+        }
+
+        .cm-material-row {
+          grid-template-columns: 52px 1fr;
+        }
+
+        .cm-actions {
+          grid-column: 2;
+          justify-content: flex-start;
+        }
+
+        .cm-material-icon {
+          width: 52px;
+          height: 52px;
+        }
+      }
+
+      @media (max-width: 620px) {
+        .cm-filter-panel {
+          grid-template-columns: 1fr;
+        }
+
+        .cm-total {
+          align-items: flex-start;
+        }
+
+        .cm-two-columns {
+          grid-template-columns: 1fr;
+        }
+
+        .cm-modal-backdrop {
+          padding: 0;
+        }
+
+        .cm-modal {
+          width: 100%;
+          max-height: 100vh;
+          min-height: 100vh;
+          border-radius: 0;
+        }
+
+        .cm-modal-header,
+        .cm-form {
+          padding-left: 20px;
+          padding-right: 20px;
+        }
+
+        .cm-form-actions {
+          flex-direction: column-reverse;
+        }
+
+        .cm-form-actions button {
+          width: 100%;
+        }
+
+        .cm-header h1 {
+          font-size: 45px;
+        }
+
+        .cm-course-summary {
+          padding: 25px;
+        }
+
+        .cm-course-count {
+          width: 62px;
+          height: 62px;
+          font-size: 20px;
+        }
+      }
     `}</style>
   );
 }
