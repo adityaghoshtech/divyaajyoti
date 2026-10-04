@@ -19,9 +19,11 @@ import { api } from "../../convex/_generated/api";
 import {
   ArrowUpRight,
   Building2,
+  Boxes,
   CalendarDays,
   Check,
   ChevronRight,
+  Download,
   Edit3,
   GraduationCap,
   LayoutDashboard,
@@ -154,6 +156,98 @@ const slugify = (value: string) =>
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/(^-|-$)/g, "");
+
+
+// =========================================================
+// LEADS CSV EXPORT
+// =========================================================
+
+function downloadLeadsCSV(leads: any[]) {
+  if (!leads || leads.length === 0) {
+    window.alert("No leads available to export.");
+    return;
+  }
+
+  // Export every field present in the returned lead records.
+  // This also keeps any future fields from being silently omitted.
+  const preferredColumns = [
+    "_id",
+    "name",
+    "phone",
+    "email",
+    "source",
+    "interest",
+    "priority",
+    "status",
+    "assignedTo",
+    "followUpAt",
+    "lastContactedAt",
+    "message",
+    "notes",
+    "createdAt",
+    "updatedAt",
+    "_creationTime",
+  ];
+
+  const allKeys = Array.from(
+    new Set(leads.flatMap((lead) => Object.keys(lead ?? {}))),
+  );
+  const columns = [
+    ...preferredColumns.filter((key) => allKeys.includes(key)),
+    ...allKeys.filter((key) => !preferredColumns.includes(key)).sort(),
+  ];
+
+  const formatValue = (key: string, value: unknown): string => {
+    if (value === null || value === undefined) return "";
+
+    if (
+      typeof value === "number" &&
+      /(At|Date|Time)$/i.test(key) &&
+      Number.isFinite(value)
+    ) {
+      return new Date(value).toLocaleString("en-IN");
+    }
+
+    if (value instanceof Date) {
+      return value.toLocaleString("en-IN");
+    }
+
+    if (typeof value === "object") {
+      return JSON.stringify(value);
+    }
+
+    return String(value);
+  };
+
+  const escapeCSV = (value: string): string => {
+    // Reduce the risk of spreadsheet formula injection when opening the CSV.
+    const safeValue = /^[\s]*[=+@]/.test(value) ? `'${value}` : value;
+    return `"${safeValue.replace(/"/g, '""')}"`;
+  };
+
+  const header = columns.map(escapeCSV).join(",");
+  const dataRows = leads.map((lead) =>
+    columns
+      .map((key) => escapeCSV(formatValue(key, lead?.[key])))
+      .join(","),
+  );
+
+  // BOM helps Excel recognize UTF-8, including Indian names and text.
+  const csvContent = "\uFEFF" + [header, ...dataRows].join("\r\n");
+  const blob = new Blob([csvContent], {
+    type: "text/csv;charset=utf-8;",
+  });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  const date = new Date().toISOString().slice(0, 10);
+
+  link.href = url;
+  link.download = `divyajyoti-leads-${date}.csv`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
 
 // =========================================================
 // ADMIN PAGE
@@ -291,6 +385,15 @@ export default function AdminPage() {
             </div>
           ))}
 
+          <a
+            href="/admin/inventory"
+            className="dj-admin-inventory-link"
+          >
+            <Boxes size={16} />
+            <span>Inventory Management</span>
+            <ArrowUpRight size={13} />
+          </a>
+
         </div>
 
       </aside>
@@ -315,14 +418,26 @@ export default function AdminPage() {
 
           </div>
 
-          <a
-            href="/"
-            target="_blank"
-            rel="noreferrer"
-          >
-            View website
-            <ArrowUpRight size={14} />
-          </a>
+          <div className="dj-topbar-actions">
+
+            <a
+              className="dj-inventory-topbar-link"
+              href="/admin/inventory"
+            >
+              <Boxes size={14} />
+              Inventory
+            </a>
+
+            <a
+              href="/"
+              target="_blank"
+              rel="noreferrer"
+            >
+              View website
+              <ArrowUpRight size={14} />
+            </a>
+
+          </div>
 
         </div>
 
@@ -358,41 +473,63 @@ export default function AdminPage() {
 
               </div>
 
-              <button
-                className="dj-primary"
-                onClick={() => {
-
-                  if (
-                    tab ===
-                    "propertyCategories"
-                  ) {
-                    setCategoryEditor(true);
-                    return;
-                  }
-
-                  setEditor({
-                    table: tab,
-                  });
-
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "flex-end",
+                  gap: 12,
+                  flexWrap: "wrap",
                 }}
               >
-                <Plus size={17} />
+                {tab === "leads" && (
+                  <button
+                    type="button"
+                    className="dj-secondary"
+                    onClick={() => downloadLeadsCSV((rows ?? []) as any[])}
+                    disabled={!rows || rows.length === 0}
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 9,
+                      minHeight: 48,
+                      padding: "0 18px",
+                      border: "1px solid #dce2eb",
+                      borderRadius: 12,
+                      background: "#ffffff",
+                      color: "#172238",
+                      fontSize: 13,
+                      fontWeight: 700,
+                      cursor: !rows || rows.length === 0 ? "not-allowed" : "pointer",
+                      opacity: !rows || rows.length === 0 ? 0.55 : 1,
+                    }}
+                  >
+                    <Download size={17} />
+                    Download CSV
+                  </button>
+                )}
 
-                Add{" "}
+                <button
+                  className="dj-primary"
+                  onClick={() => {
+                    if (tab === "propertyCategories") {
+                      setCategoryEditor(true);
+                      return;
+                    }
 
-                {tab ===
-                "propertyCategories"
-                  ? "category"
-                  : label(tab)
-                      .replace(
-                        " / CRM",
-                        "",
-                      )
-                      .replace(
-                        /s$/,
-                        "",
-                      )}
-              </button>
+                    setEditor({ table: tab });
+                  }}
+                >
+                  <Plus size={17} />
+                  Add{" "}
+                  {tab === "propertyCategories"
+                    ? "category"
+                    : label(tab)
+                        .replace(" / CRM", "")
+                        .replace(/s$/, "")}
+                </button>
+              </div>
 
             </div>
 

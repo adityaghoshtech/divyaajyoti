@@ -15,8 +15,10 @@ import {
   ShieldCheck,
   Star,
   Users,
-  BriefcaseBusiness
+  BriefcaseBusiness,
+  ShoppingBag
 } from 'lucide-react';
+
 import { properties, courses, articles, astrologyCourses, astrologyTeachers, testimonials } from '@/lib/data';
 import { PropertyCard } from '@/components/property-card';
 import { SectionHead } from '@/components/section';
@@ -57,8 +59,14 @@ export default function Home() {
               <Link href="/astrology">Discover <ArrowUpRight size={13} /></Link>
             </div>
             <div className="collage-vip-card">
-              <span className="vip-icon"><Crown size={15} /></span>
-              <div><b>VIP & Business Desk</b><small>Private guidance • Priority support</small></div>
+              <span className="vip-icon">
+                <ShoppingBag size={17} strokeWidth={1.8} />
+              </span>
+
+              <div>
+                <b>Upcoming Online Shopping</b>
+                <small>Something exciting is coming soon</small>
+              </div>
             </div>
             <div className="collage-property-photo" />
             <div className="collage-caption"><span>01</span><b>A considered digital experience</b><small>Astrology • Property • Learning • Business</small></div>
@@ -70,7 +78,7 @@ export default function Home() {
           <Link className="service-nav-item" href="/properties"><span><HomeIcon size={17} /></span><div><b>Property</b><small>Homes & investments</small></div><ArrowUpRight size={14} /></Link>
           <Link className="service-nav-item" href="/vip-business"><span><Crown size={17} /></span><div><b>VIP & Business</b><small>Private services</small></div><ArrowUpRight size={14} /></Link>
           <Link className="service-nav-item" href="/education"><span><GraduationCap size={17} /></span><div><b>Learning</b><small>Courses & workshops</small></div><ArrowUpRight size={14} /></Link>
-          <Link className="service-nav-item" href="/events"><span><CalendarDays size={17} /></span><div><b>Events</b><small>Talks & community</small></div><ArrowUpRight size={14} /></Link>
+          {/* <Link className="service-nav-item" href="/events"><span><CalendarDays size={17} /></span><div><b>Events</b><small>Talks & community</small></div><ArrowUpRight size={14} /></Link> */}
         </div>
       </section>
 

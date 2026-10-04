@@ -696,7 +696,7 @@ button,a,input,textarea,select{touch-action:manipulation}
 
   display: grid !important;
 
-  grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+  grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
 
   box-sizing: border-box !important;
 
@@ -12705,4 +12705,1319 @@ button,a,input,textarea,select{touch-action:manipulation}
 
 .student-course-button {
   text-decoration: none;
+}
+/* ==========================================
+   DIVYAJYOTI LANGUAGE SELECTOR
+========================================== */
+
+.dj-language-selector {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 0 10px;
+  border: 1px solid rgba(128, 139, 155, 0.3);
+  border-radius: 10px;
+  background: transparent;
+  color: inherit;
+  flex-shrink: 0;
+}
+
+.dj-language-selector select {
+  border: none;
+  outline: none;
+  background: transparent;
+  color: inherit;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  max-width: 105px;
+}
+
+.dj-language-selector select option {
+  background: #ffffff;
+  color: #172238;
+}
+
+.navcta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.mobile-language-wrap {
+  display: flex;
+  justify-content: flex-start;
+  padding: 12px 0 18px;
+}
+
+.mobile-language-wrap .dj-language-selector {
+  min-height: 42px;
+}
+
+@media (max-width: 768px) {
+  .navcta {
+    display: none;
+  }
+
+  .mobile-language-wrap .dj-language-selector {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .mobile-language-wrap .dj-language-selector select {
+    flex: 1;
+    max-width: none;
+    padding: 8px 0;
+  }
+}
+
+/* Bengali and Hindi typography support */
+
+html[lang="bn"],
+html[lang="hi"] {
+  font-family: Arial, "Noto Sans Bengali", "Noto Sans Devanagari", sans-serif;
+}
+
+/* Google Translate styling */
+
+#google_translate_element {
+  display: flex;
+  align-items: center;
+  min-width: 120px;
+}
+
+#google_translate_element .goog-te-gadget {
+  font-family: inherit !important;
+  font-size: 0 !important;
+}
+
+#google_translate_element .goog-te-combo {
+  height: 40px;
+  padding: 0 10px;
+  border: 1px solid #e5dfd4;
+  border-radius: 10px;
+  background: #fff;
+  color: #172337;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.goog-te-banner-frame {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}
+
+.goog-logo-link {
+  display: none !important;
+}
+
+.goog-te-gadget span {
+  display: none !important;
+}
+
+/* Google Translate widget */
+
+
+/* =========================================================
+   GOOGLE TRANSLATE
+========================================================= */
+
+.google-translator {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 135px;
+  min-height: 42px;
+  position: relative;
+  z-index: 100;
+}
+
+.google-translator .goog-te-gadget {
+  font-family: inherit !important;
+  font-size: 0 !important;
+  color: transparent !important;
+}
+
+.google-translator .goog-te-gadget .goog-te-combo {
+  display: block !important;
+  width: 135px !important;
+  height: 42px !important;
+  margin: 0 !important;
+  padding: 0 10px !important;
+  border: 1px solid #e5dfd4 !important;
+  border-radius: 10px !important;
+  background-color: #fff !important;
+  color: #172337 !important;
+  font-family: inherit !important;
+  font-size: 13px !important;
+  font-weight: 600 !important;
+  cursor: pointer !important;
+}
+
+.google-translator .goog-te-gadget span {
+  display: none !important;
+}
+
+.goog-te-banner-frame {
+  display: none !important;
+}
+
+body {
+  top: 0 !important;
+}
+
+/* Keep the selector visible in the navbar */
+
+.navcta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 900px) {
+  .google-translator {
+    min-width: 130px;
+  }
+}
+
+/* =========================================
+   HOMEPAGE SERVICE CATEGORY SECTION
+========================================= */
+
+.category-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  width: 100%;
+  max-width: 100%;
+  min-height: 145px;
+  margin-top: 30px;
+  border: 1px solid #e5dccd;
+  border-radius: 20px;
+  overflow: hidden;
+  background: #fff;
+  box-shadow: 0 12px 35px rgba(23, 35, 55, 0.05);
+}
+
+.category-card {
+  width: 100%;
+  min-width: 0;
+  min-height: 145px;
+  padding: 25px 28px;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  border-right: 1px solid #e5dccd;
+  box-sizing: border-box;
+  transition: all 0.3s ease;
+}
+
+.category-card:last-child {
+  border-right: none;
+}
+
+.category-card:hover {
+  background: #faf7f0;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(23, 35, 55, 0.07);
+}
+
+.category-icon {
+  width: 58px;
+  height: 58px;
+  min-width: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 15px;
+  background: #f4f0e8;
+  color: #a77a3f;
+}
+
+.category-icon svg {
+  width: 25px;
+  height: 25px;
+}
+
+.category-card h3 {
+  font-size: 16px;
+  font-weight: 700;
+  color: #101d32;
+  margin: 0 0 7px;
+}
+
+.category-card p {
+  font-size: 13px;
+  color: #71809a;
+  margin: 0;
+}
+
+.category-arrow {
+  margin-left: auto;
+  flex-shrink: 0;
+  color: #91a0b4;
+  transition: transform 0.3s ease;
+}
+
+.category-card:hover .category-arrow {
+  transform: translate(4px, -4px);
+}
+
+/* =========================================
+   TABLET
+========================================= */
+
+@media (max-width: 900px) {
+  .category-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .category-card:nth-child(2) {
+    border-right: none;
+  }
+
+  .category-card:nth-child(-n+2) {
+    border-bottom: 1px solid #e5dccd;
+  }
+}
+
+/* =========================================
+   MOBILE RESPONSIVENESS
+========================================= */
+
+@media (max-width: 550px) {
+  .category-strip {
+    grid-template-columns: 1fr;
+    min-height: auto;
+    border-radius: 16px;
+  }
+
+  .category-card {
+    min-height: 100px;
+    padding: 18px;
+    border-right: none;
+    border-bottom: 1px solid #e5dccd;
+  }
+
+  .category-card:last-child {
+    border-bottom: none;
+  }
+}
+
+/* =========================================
+   UPCOMING ONLINE SHOPPING CARD
+   Visibility and Contrast Fix
+========================================= */
+
+
+/* =========================================
+   UPCOMING ONLINE SHOPPING
+   High Contrast Design
+========================================= */
+
+.collage-vip-card {
+  position: relative !important;
+  z-index: 50 !important;
+
+  display: flex !important;
+  align-items: center !important;
+  gap: 12px !important;
+
+  width: fit-content !important;
+  min-width: 270px !important;
+  max-width: 100% !important;
+
+  padding: 13px 17px !important;
+
+  background: #101d32 !important;
+  background-image: none !important;
+
+  border: 1px solid #b78a4d !important;
+  border-radius: 18px !important;
+
+  opacity: 1 !important;
+  visibility: visible !important;
+
+  box-shadow: 0 14px 35px rgba(16, 29, 50, 0.24) !important;
+
+  animation: shoppingCardFloat 3s ease-in-out infinite;
+
+  transition: box-shadow 0.3s ease;
+}
+
+/* Icon container */
+
+.collage-vip-card .vip-icon {
+  width: 44px !important;
+  height: 44px !important;
+  min-width: 44px !important;
+
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+
+  background: #26364c !important;
+  color: #e8bd78 !important;
+
+  border: 1px solid #b78a4d !important;
+  border-radius: 13px !important;
+}
+
+/* Heading */
+
+.collage-vip-card b {
+  display: block !important;
+
+  color: #ffffff !important;
+  -webkit-text-fill-color: #ffffff !important;
+
+  font-size: 13px !important;
+  font-weight: 800 !important;
+  line-height: 1.5 !important;
+
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Description */
+
+.collage-vip-card small {
+  display: block !important;
+
+  color: #d7dfeb !important;
+  -webkit-text-fill-color: #d7dfeb !important;
+
+  font-size: 10px !important;
+  font-weight: 500 !important;
+  line-height: 1.5 !important;
+
+  margin-top: 3px !important;
+
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+/* Floating animation */
+
+@keyframes shoppingCardFloat {
+  0% {
+    transform: translateY(0);
+  }
+
+  50% {
+    transform: translateY(-9px);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+/* Hover effect */
+
+.collage-vip-card:hover {
+  box-shadow: 0 20px 45px rgba(16, 29, 50, 0.32) !important;
+}
+
+.collage-vip-card:hover .vip-icon {
+  transform: scale(1.1);
+  transition: transform 0.3s ease;
+}
+
+/* Mobile adjustment */
+
+@media (max-width: 550px) {
+  .collage-vip-card {
+    min-width: 0 !important;
+    padding: 11px 13px !important;
+  }
+}
+
+/* Accessibility */
+
+@media (prefers-reduced-motion: reduce) {
+  .collage-vip-card {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ============================================
+   CAREER COUNSELLING PAGE
+============================================ */
+
+.career-page {
+  overflow: hidden;
+  background: var(--ivory);
+}
+
+.career-page-hero {
+  padding: 85px 0 !important;
+  background: #f3eee5 !important;
+}
+
+.career-hero-grid {
+  grid-template-columns: 1fr 0.9fr !important;
+  gap: 75px !important;
+}
+
+.career-hero-copy {
+  position: relative;
+  z-index: 2;
+}
+
+.career-page-hero h1 {
+  max-width: 720px;
+  font-size: clamp(50px, 5.6vw, 76px) !important;
+  line-height: 1.02 !important;
+  letter-spacing: -0.045em;
+  margin: 20px 0 23px !important;
+}
+
+.career-page-hero h1 span {
+  display: block;
+  color: #ad7d42;
+}
+
+.career-page-hero p {
+  max-width: 620px;
+  font-size: 15px;
+  line-height: 1.85;
+  color: #68758a;
+}
+
+.career-page-hero .hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 30px;
+}
+
+.career-hero-points {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-top: 30px;
+}
+
+.career-hero-points span {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  color: #647187;
+}
+
+.career-hero-points svg {
+  color: #b98b4f;
+}
+
+
+/* HERO IMAGE */
+
+.career-hero-visual {
+  position: relative;
+  min-height: 520px;
+  isolation: isolate;
+}
+
+.career-page-photo {
+  position: absolute;
+  inset: 0 0 30px 30px;
+  height: 490px;
+  border-radius: 30px 30px 110px 30px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(16, 27, 45, 0.02),
+      rgba(16, 27, 45, 0.24)
+    ),
+    url("https://images.unsplash.com/photo-1521737711867-e3b97375f902?auto=format&fit=crop&w=1300&q=88")
+    center / cover;
+
+  box-shadow: 0 25px 70px rgba(16, 27, 45, 0.16);
+
+  animation: careerImageReveal 1s ease both;
+}
+
+.career-photo-badge {
+  position: absolute;
+  left: -30px;
+  bottom: 95px;
+  z-index: 3;
+
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  padding: 15px 19px;
+  border: 1px solid #e8e0d2;
+  border-radius: 18px;
+
+  background: #fffdf8;
+  box-shadow: 0 20px 55px rgba(16, 27, 45, 0.16);
+}
+
+.career-photo-icon {
+  width: 46px;
+  height: 46px;
+  display: grid;
+  place-items: center;
+
+  color: #e2bd80;
+  background: #142238;
+  border-radius: 13px;
+}
+
+.career-photo-badge strong {
+  display: block;
+  font-size: 12px;
+  color: #142238;
+}
+
+.career-photo-badge small {
+  display: block;
+  font-size: 10px;
+  color: #718096;
+  margin-top: 4px;
+}
+
+.career-photo-note {
+  position: absolute;
+  z-index: 2;
+  right: -15px;
+  bottom: 5px;
+
+  width: 235px;
+  padding: 17px 19px;
+
+  border-radius: 17px;
+  background: #142238;
+  color: white;
+
+  box-shadow: 0 18px 45px rgba(16, 27, 45, 0.2);
+}
+
+.career-photo-note span {
+  display: block;
+  color: #e2bd80;
+  font-size: 8px;
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  margin-bottom: 9px;
+}
+
+.career-photo-note strong {
+  display: block;
+  font-family: var(--font-playfair);
+  font-size: 19px;
+  line-height: 1.2;
+}
+
+.career-photo-note small {
+  display: block;
+  color: #c0cad7;
+  font-size: 9px;
+  margin-top: 7px;
+  line-height: 1.5;
+}
+
+@keyframes careerImageReveal {
+  from {
+    opacity: 0;
+    transform: translateY(15px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+
+/* INTRODUCTION */
+
+.career-intro {
+  background: #fffdf8;
+}
+
+.career-intro-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 90px;
+  align-items: center;
+}
+
+.career-intro-grid h2 {
+  max-width: 560px;
+  font-size: 48px;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  margin: 14px 0 0;
+}
+
+.career-intro-copy p {
+  font-size: 14px;
+  line-height: 1.85;
+  color: #718096;
+  margin: 0 0 15px;
+}
+
+.career-intro-copy .text-link {
+  margin-top: 12px;
+}
+
+
+/* SERVICES */
+
+.career-services {
+  background: #f7f3eb;
+}
+
+.career-section-heading h2 {
+  max-width: 650px;
+}
+
+.career-service-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 17px;
+}
+
+.career-service-card {
+  min-height: 270px;
+  padding: 25px;
+
+  border: 1px solid #e8e0d2;
+  border-radius: 21px;
+
+  background: #fffdf9;
+
+  display: flex;
+  flex-direction: column;
+
+  transition:
+    transform 0.3s ease,
+    box-shadow 0.3s ease,
+    border-color 0.3s ease;
+}
+
+.career-service-card:hover {
+  transform: translateY(-6px);
+  border-color: #d7bb8c;
+  box-shadow: 0 22px 48px rgba(16, 27, 45, 0.09);
+}
+
+.career-service-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 27px;
+}
+
+.career-service-icon {
+  width: 49px;
+  height: 49px;
+  display: grid;
+  place-items: center;
+
+  color: #b8894c;
+  background: #f3ecdf;
+  border-radius: 14px;
+}
+
+.career-service-top > span {
+  color: #a5aeba;
+  font-size: 10px;
+  letter-spacing: 0.15em;
+}
+
+.career-service-card h3 {
+  font-family: var(--font-playfair);
+  font-size: 22px;
+  line-height: 1.2;
+  margin: 0 0 10px;
+}
+
+.career-service-card p {
+  color: #718096;
+  font-size: 12px;
+  line-height: 1.75;
+  margin: 0 0 22px;
+  flex: 1;
+}
+
+.career-service-card a {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+
+  color: #9b713b;
+  font-size: 11px;
+  font-weight: 750;
+}
+
+.career-service-card a:hover {
+  color: #142238;
+}
+
+
+/* AUDIENCE */
+
+.career-audience {
+  background: #fffdf8;
+}
+
+.career-audience-heading {
+  max-width: 690px;
+  margin-bottom: 38px;
+}
+
+.career-audience-heading h2 {
+  font-size: 48px;
+  line-height: 1.08;
+  letter-spacing: -0.04em;
+  margin: 13px 0;
+}
+
+.career-audience-heading p {
+  color: #718096;
+  font-size: 14px;
+  line-height: 1.8;
+  max-width: 580px;
+}
+
+.career-audience-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+}
+
+.career-audience-card {
+  padding: 24px 21px;
+  min-height: 230px;
+
+  border: 1px solid #e8e0d2;
+  border-radius: 19px;
+  background: #faf7f0;
+
+  transition: 0.25s ease;
+}
+
+.career-audience-card:hover {
+  background: #f3ecdf;
+  transform: translateY(-4px);
+}
+
+.career-audience-number {
+  font-size: 11px;
+  font-weight: 800;
+  color: #b8894c;
+  letter-spacing: 0.13em;
+}
+
+.career-audience-line {
+  width: 36px;
+  height: 2px;
+  background: #c89b58;
+  margin: 19px 0;
+}
+
+.career-audience-card h3 {
+  font-family: var(--font-playfair);
+  font-size: 21px;
+  line-height: 1.2;
+  margin: 0 0 10px;
+}
+
+.career-audience-card p {
+  font-size: 11px;
+  line-height: 1.75;
+  color: #718096;
+  margin: 0;
+}
+
+
+/* PROCESS */
+
+.career-process {
+  background: #f2ede4;
+}
+
+.career-process-grid {
+  grid-template-columns: 0.85fr 1.15fr;
+  gap: 85px;
+}
+
+.career-process-grid h2 {
+  max-width: 470px;
+}
+
+.career-process-btn {
+  margin-top: 22px;
+}
+
+.career-process-list {
+  border-top: 1px solid #ddd5c8;
+}
+
+.career-process-item {
+  display: grid;
+  grid-template-columns: 48px 1fr;
+  gap: 17px;
+
+  padding: 23px 0;
+  border-bottom: 1px solid #ddd5c8;
+}
+
+.career-process-item > b {
+  color: #b8894c;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  padding-top: 3px;
+}
+
+.career-process-item strong {
+  display: block;
+  font-family: var(--font-playfair);
+  font-size: 20px;
+  color: #142238;
+  margin-bottom: 7px;
+}
+
+.career-process-item small {
+  display: block;
+  color: #718096;
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+
+/* BENEFITS */
+
+.career-benefits {
+  background: #fffdf8;
+}
+
+.career-benefits-card {
+  display: grid;
+  grid-template-columns: 70px 1fr;
+  gap: 28px;
+
+  padding: 55px;
+  border-radius: 28px;
+
+  background: #142238;
+  color: white;
+  box-shadow: 0 25px 65px rgba(16, 27, 45, 0.12);
+}
+
+.career-benefits-icon {
+  width: 57px;
+  height: 57px;
+  display: grid;
+  place-items: center;
+
+  color: #e2bd80;
+  background: rgba(226, 189, 128, 0.12);
+  border: 1px solid rgba(226, 189, 128, 0.28);
+  border-radius: 16px;
+}
+
+.career-benefits-content .eyebrow {
+  color: #e2bd80;
+}
+
+.career-benefits-content h2 {
+  font-size: 43px;
+  line-height: 1.08;
+  max-width: 700px;
+  margin: 12px 0 16px;
+}
+
+.career-benefits-content > p {
+  color: #bac5d3;
+  font-size: 13px;
+  line-height: 1.8;
+  max-width: 680px;
+}
+
+.career-benefits-points {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 15px;
+  margin-top: 27px;
+}
+
+.career-benefits-points span {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+
+  color: #e1e6ed;
+  font-size: 11px;
+}
+
+.career-benefits-points svg {
+  color: #e2bd80;
+  flex: none;
+}
+
+
+/* FINAL CTA */
+
+.career-final {
+  padding-top: 30px;
+  background: #fffdf8;
+}
+
+.career-final-card {
+  padding: 70px 30px;
+  text-align: center;
+
+  border-radius: 30px;
+  background:
+    radial-gradient(
+      circle at 85% 10%,
+      rgba(199, 151, 79, 0.18),
+      transparent 30%
+    ),
+    #142238;
+
+  color: white;
+}
+
+.career-final-card .eyebrow {
+  color: #e2bd80;
+}
+
+.career-final-card h2 {
+  font-size: clamp(38px, 5vw, 58px);
+  line-height: 1.05;
+  margin: 16px auto;
+}
+
+.career-final-card > p {
+  max-width: 580px;
+  margin: 0 auto;
+  color: #c0cad7;
+  font-size: 14px;
+  line-height: 1.8;
+}
+
+.career-final-actions {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 23px;
+  flex-wrap: wrap;
+  margin-top: 30px;
+}
+
+.career-contact-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  color: white;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.career-contact-link:hover {
+  color: #e2bd80;
+}
+
+
+/* RESPONSIVE DESIGN */
+
+@media (max-width: 1000px) {
+
+  .career-hero-grid {
+    grid-template-columns: 1fr !important;
+    gap: 45px !important;
+  }
+
+  .career-hero-visual {
+    max-width: 700px;
+    width: 100%;
+    margin: auto;
+  }
+
+  .career-intro-grid {
+    grid-template-columns: 1fr;
+    gap: 25px;
+  }
+
+  .career-process-grid {
+    grid-template-columns: 1fr;
+    gap: 35px;
+  }
+
+  .career-service-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .career-audience-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+}
+
+@media (max-width: 700px) {
+
+  .career-page-hero {
+    padding: 55px 0 !important;
+  }
+
+  .career-page-hero h1 {
+    font-size: 46px !important;
+  }
+
+  .career-page-hero p {
+    font-size: 14px;
+  }
+
+  .career-hero-visual {
+    min-height: 370px;
+  }
+
+  .career-page-photo {
+    inset: 0 0 20px 10px;
+    height: 345px;
+    border-radius: 23px 23px 75px 23px;
+  }
+
+  .career-photo-badge {
+    left: -5px;
+    bottom: 70px;
+    padding: 11px;
+    gap: 8px;
+  }
+
+  .career-photo-icon {
+    width: 39px;
+    height: 39px;
+  }
+
+  .career-photo-badge strong {
+    font-size: 10px;
+  }
+
+  .career-photo-badge small {
+    font-size: 9px;
+  }
+
+  .career-photo-note {
+    right: 0;
+    bottom: 0;
+    width: 190px;
+    padding: 13px;
+  }
+
+  .career-photo-note strong {
+    font-size: 16px;
+  }
+
+  .career-hero-points {
+    gap: 12px;
+  }
+
+  .career-hero-points span {
+    font-size: 10px;
+  }
+
+  .career-intro-grid h2,
+  .career-audience-heading h2 {
+    font-size: 37px;
+  }
+
+  .career-service-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .career-service-card {
+    min-height: 235px;
+  }
+
+  .career-audience-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .career-audience-card {
+    min-height: auto;
+  }
+
+  .career-benefits-card {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 30px 23px;
+  }
+
+  .career-benefits-content h2 {
+    font-size: 34px;
+  }
+
+  .career-benefits-points {
+    grid-template-columns: 1fr;
+  }
+
+  .career-process-item {
+    grid-template-columns: 35px 1fr;
+    gap: 10px;
+  }
+
+  .career-process-item strong {
+    font-size: 18px;
+  }
+
+  .career-final-card {
+    padding: 48px 22px;
+  }
+
+  .career-final-card h2 {
+    font-size: 39px;
+  }
+
+  .career-final-actions {
+    flex-direction: column;
+    gap: 17px;
+  }
+
+}
+.brand-mark {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+
+.brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+/* Updated Divyajyoti logo */
+
+
+
+
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-shrink: 0;
+  min-width: 0;
+}
+
+.brand-mark {
+  width: 68px !important;
+  height: 68px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  overflow: hidden;
+  border-radius: 50% !important;
+  background: transparent !important;
+}
+
+.brand-logo {
+  display: block;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover;
+  object-position: center;
+  border-radius: 50% !important;
+}
+
+.brand-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 5px;
+}
+
+.brand-copy strong {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 39px;
+  line-height: 1;
+  color: #142238;
+  letter-spacing: -1.5px;
+  white-space: nowrap;
+}
+
+.brand-copy small {
+  font-size: 10px;
+  letter-spacing: 0.8px;
+  color: #718096;
+  white-space: nowrap;
+}
+
+@media (max-width: 1200px) {
+  .brand-mark {
+    width: 76px !important;
+    height: 58px !important;
+  }
+
+  .brand-copy strong {
+    font-size: 32px;
+  }
+
+  .brand-copy small {
+    font-size: 8px;
+  }
+}
+
+@media (max-width: 768px) {
+  .brand {
+    gap: 8px;
+  }
+
+  .brand-mark {
+    width: 54px !important;
+    height: 54px !important;
+  }
+
+  .brand-copy strong {
+    font-size: 24px;
+    letter-spacing: -0.8px;
+  }
+
+  .brand-copy small {
+    font-size: 7px;
+    letter-spacing: 0.3px;
+  }
+}
+
+.footer-brand-mark {
+  width: 52px;
+  height: 52px;
+  min-width: 52px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  border-radius: 50%;
+  background: transparent;
+  flex-shrink: 0;
+}
+
+.footer-brand-logo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  border-radius: 50%;
 }

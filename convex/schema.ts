@@ -965,6 +965,72 @@ courseEnrollments: defineTable({
   ),
 
 
+
+  // =========================================================
+  // PROPERTY PROJECTS
+  // =========================================================
+
+  propertyProjects: defineTable({
+    name: v.string(),
+    slug: v.string(),
+    developer: v.optional(v.string()),
+    location: v.optional(v.string()),
+    type: v.string(),
+    description: v.optional(v.string()),
+    status: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_status", ["status"]),
+
+  // =========================================================
+  // PROPERTY INVENTORY
+  // One record = one flat / plot.
+  // Client names are internal admin data.
+  // =========================================================
+
+  propertyInventory: defineTable({
+    projectId: v.id("propertyProjects"),
+    inventoryType: v.string(),
+    unitCode: v.string(),
+    category: v.optional(v.string()),
+    tower: v.optional(v.string()),
+    floor: v.optional(v.number()),
+    flatNo: v.optional(v.string()),
+    facing: v.optional(v.string()),
+    size: v.optional(v.string()),
+    price: v.optional(v.number()),
+    parking: v.optional(v.string()),
+    totalValue: v.optional(v.number()),
+    status: v.string(),
+    clientName: v.optional(v.string()),
+    sourceDocument: v.optional(v.string()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_project", ["projectId"])
+    .index("by_status", ["status"])
+    .index("by_project_unit", ["projectId", "unitCode"])
+    .index("by_project_status", ["projectId", "status"]),
+
+  // =========================================================
+  // PROPERTY DOCUMENTS
+  // Original PDFs, maps, price sheets and brochures.
+  // =========================================================
+
+  propertyDocuments: defineTable({
+    projectId: v.id("propertyProjects"),
+    title: v.string(),
+    fileName: v.string(),
+    mimeType: v.string(),
+    category: v.string(),
+    storageId: v.id("_storage"),
+    createdAt: v.number(),
+    updatedAt: v.optional(v.number()),
+  }).index("by_project", ["projectId"]),
+
   // =========================================================
   // EVENTS
   // =========================================================

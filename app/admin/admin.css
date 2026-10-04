@@ -2209,3 +2209,49 @@ body:has(.dj-admin) {
   color: #263247;
   border: 1px solid #dce2ea;
 }
+
+/* ============================================================
+   INVENTORY SHORTCUT
+============================================================ */
+
+.dj-admin-inventory-link {
+  width: calc(100% - 24px);
+  min-height: 42px;
+  margin: 4px 12px 14px;
+  padding: 9px 11px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 9px;
+  background: rgba(217,119,6,.10);
+  color: #d9e1ec;
+  font-size: 12px;
+  font-weight: 700;
+  transition: .18s ease;
+}
+.dj-admin-inventory-link svg:first-child { color:#fbbf24; flex-shrink:0; }
+.dj-admin-inventory-link svg:last-child { margin-left:auto; opacity:.55; }
+.dj-admin-inventory-link:hover { background:rgba(217,119,6,.18); color:#fff; }
+
+.dj-topbar-actions { display:flex; align-items:center; gap:9px; }
+.dj-inventory-topbar-link {
+  min-height:36px;
+  padding:8px 11px;
+  display:inline-flex;
+  align-items:center;
+  gap:7px;
+  border:1px solid #e5e7eb;
+  border-radius:9px;
+  background:#fff;
+  color:#475569;
+  font-size:11px;
+  font-weight:750;
+  text-decoration:none;
+}
+.dj-inventory-topbar-link:hover { color:#111827; border-color:#cbd5e1; background:#f8fafc; }
+
+@media(max-width:720px) {
+  .dj-topbar-actions { width:100%; justify-content:flex-end; }
+  .dj-inventory-topbar-link { display:none; }
+}
