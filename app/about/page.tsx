@@ -1,4 +1,5 @@
 "use client";
+import WhatsAppContact from "@/components/whatsapp-contact";
 
 import Link from "next/link";
 
@@ -739,6 +740,10 @@ export default function AboutPage() {
         </div>
 
       </section>
+
+      {/* WHATSAPP QR CODE */}
+
+      <WhatsAppContact />
 
       {/* PAGE-SPECIFIC STYLES */}
 

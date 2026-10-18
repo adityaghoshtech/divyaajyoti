@@ -9,7 +9,7 @@ import { SiteHeader } from "@/components/site-header";
 import { SiteFooter } from "@/components/site-footer";
 
 export const metadata: Metadata = {
-  title: "Divyajyoti | Astrology, Property, VIP & Business",
+  title: "Divyajyoti | Astrology, Property, ONLINE SHOPPING & Business",
   description:
     "Divyajyoti brings astrology, learning, property and private business services together in one simple experience.",
 };

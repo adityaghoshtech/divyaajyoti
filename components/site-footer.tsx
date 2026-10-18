@@ -5,6 +5,12 @@ import Link from "next/link";
 import Image from "next/image";
 import { useLanguage } from "@/components/language-provider";
 
+const WHATSAPP_URL =
+  "https://wa.me/917980555167?text=" +
+  encodeURIComponent(
+    "Hello! I visited your website and I'm interested in learning more about your services. Could you please share the details with me?"
+  );
+
 export function SiteFooter() {
   const { t } = useLanguage();
 
@@ -51,7 +57,7 @@ export function SiteFooter() {
           <h4>{t("explore")}</h4>
           <Link href="/astrology">{t("astrology")}</Link>
           <Link href="/properties">{t("property")}</Link>
-          <Link href="/vip-business">{t("vipBusiness")}</Link>
+          <Link href="/career-counselling">Career Counselling</Link>
           <Link href="/education">{t("learning")}</Link>
         </div>
 
@@ -65,10 +71,22 @@ export function SiteFooter() {
 
         <div>
           <h4>{t("connect")}</h4>
+
           <Link href="/consultation">
             {t("bookConsultation")}
           </Link>
-          <Link href="/contact">{t("talkToTeam")}</Link>
+
+          <Link href="/contact">
+            {t("talkToTeam")}
+          </Link>
+
+          <a
+            href={WHATSAPP_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Chat on WhatsApp
+          </a>
 
           <span
             style={{
@@ -92,8 +110,9 @@ export function SiteFooter() {
           {t("privacy")} • {t("terms")} •{" "}
           {t("responsibleGuidance")}
         </span>
+
       </div>
- 
+
     </footer>
   );
 }

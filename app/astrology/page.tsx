@@ -14,7 +14,12 @@ export default function Astrology() {
     <section className="astro-page-hero">
       <div className="container astro-hero-grid">
         <div><div className="eyebrow"><Star size={14} /> Divyajyoti Astrology</div><h1 className="display">Astrology you can understand. Guidance you can use.</h1><p>Learn astrology from the basics or speak to an experienced teacher about your personal questions. We keep the language clear, the process private and the learning practical.</p><div className="actions"><Link className="btn btn-gold" href="/consultation">Book a consultation <ArrowUpRight size={15}/></Link><Link className="btn btn-light" href="#classes">See classes <ArrowRight size={15}/></Link></div><div className="astro-hero-stats"><span><b>Live</b><small>teacher-led classes</small></span><span><b>Simple</b><small>step-by-step lessons</small></span><span><b>Personal</b><small>consultation support</small></span></div></div>
-        <div className="astro-hero-visual"><div className="astro-hero-photo"/><div className="astro-paper"><div className="paper-heading">BIRTH CHART <span>DIVYAJYOTI</span></div><div className="paper-grid"><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/><i/></div><small>Example learning chart</small></div></div>
+        <div className="astro-hero-visual"><div className="astro-hero-photo" /><div className="astro-paper astro-paper-image">
+          <img
+            src="https://brickfolio.in/uploads/blog_img_48d2804ffa.png"
+            alt="Divyajyoti Birth Chart"
+          />
+        </div></div>
       </div>
     </section>
 
