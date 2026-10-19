@@ -248,8 +248,34 @@ export default function Home() {
                 View properties <ArrowUpRight size={14} />
               </span>
             </Link>
+            <Link href="/education" className="big-service-card learning">
+              <span className="service-index">04</span>
+              <GraduationCap className="service-big-icon" />
+              <h3 className="display">Learning</h3>
+              <p>
+                Useful courses and workshops for people who want to build
+                knowledge at their own pace.
+              </p>
+              <span className="service-link">
+                Explore learning <ArrowUpRight size={14} />
+              </span>
+            </Link>
+            <Link href="/career-counselling" className="big-service-card career-service">
+              <span className="service-index">04</span>
 
-            
+              <BriefcaseBusiness className="service-big-icon" />
+
+              <h3 className="display">Career Counselling</h3>
+
+              <p>
+                Get practical guidance to explore career options, build skills
+                and plan your next steps with confidence.
+              </p>
+
+              <span className="service-link">
+                Explore careers <ArrowUpRight size={14} />
+              </span>
+            </Link>
             <div className="big-service-card vip vip-coming-soon">
               <span className="service-index">03</span>
               <Crown className="service-big-icon" />
@@ -273,18 +299,7 @@ export default function Home() {
             </div>
 
 
-            <Link href="/education" className="big-service-card learning">
-              <span className="service-index">04</span>
-              <GraduationCap className="service-big-icon" />
-              <h3 className="display">Learning</h3>
-              <p>
-                Useful courses and workshops for people who want to build
-                knowledge at their own pace.
-              </p>
-              <span className="service-link">
-                Explore learning <ArrowUpRight size={14} />
-              </span>
-            </Link>
+            
           </div>
         </div>
       </section>

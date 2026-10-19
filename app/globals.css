@@ -14924,13 +14924,16 @@ iframe {
   }
 }
 
+
+/* Online Shopping - Coming Soon card */
 .vip-coming-soon {
   position: relative;
   overflow: hidden;
-  cursor: default;
+  isolation: isolate;
 }
 
-.coming-soon-overlay {
+/* Overlay hidden by default */
+.vip-coming-soon .coming-soon-overlay {
   position: absolute;
   inset: 0;
   z-index: 2;
@@ -14941,35 +14944,101 @@ iframe {
   gap: 12px;
   padding: 24px;
   text-align: center;
-  color: #fff;
-  background: rgba(15, 25, 43, 0.94);
+  background: rgba(13, 25, 43, 0.96);
   opacity: 0;
   visibility: hidden;
-  transition: opacity 0.3s ease, visibility 0.3s ease;
+  pointer-events: none;
+  transition: opacity 0.25s ease, visibility 0.25s ease;
 }
 
-.coming-soon-overlay strong {
-  font-size: 25px;
+.vip-coming-soon .coming-soon-overlay strong {
+  font-size: 24px;
+  line-height: 1.2;
 }
 
-.coming-soon-overlay small {
-  color: #d0d7e3;
+.vip-coming-soon .coming-soon-overlay small {
+  max-width: 220px;
   font-size: 14px;
   line-height: 1.6;
+  color: #c3cede;
 }
 
-.vip-coming-soon:hover .coming-soon-overlay,
-.vip-coming-soon:focus-within .coming-soon-overlay {
-  opacity: 1;
-  visibility: visible;
-}
-
-@media (hover: none) {
-  .coming-soon-overlay {
+/* Desktop: show overlay on hover */
+@media (hover: hover) and (pointer: fine) {
+  .vip-coming-soon:hover .coming-soon-overlay {
     opacity: 1;
     visibility: visible;
-    position: relative;
-    inset: auto;
-    min-height: 130px;
+  }
+}
+
+/* Mobile: no large overlay; keep the card compact */
+@media (max-width: 760px) {
+  .vip-coming-soon .coming-soon-overlay {
+    display: none;
+  }
+
+  .vip-coming-soon {
+    min-height: 0;
+  }
+}
+
+
+/* Career Counselling card */
+.big-service-card.career-service {
+  background: linear-gradient(145deg, #25283b, #142239);
+  border: 1px solid rgba(224, 183, 111, 0.2);
+}
+
+.big-service-card.career-service:hover {
+  border-color: rgba(224, 183, 111, 0.65);
+  transform: translateY(-3px);
+}
+
+/* Keep all five cards in one row on desktop */
+.service-card-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  align-items: stretch;
+}
+
+.service-card-grid .big-service-card {
+  min-width: 0;
+  padding: 21px;
+}
+
+.service-card-grid .big-service-card h3 {
+  font-size: clamp(21px, 1.55vw, 28px);
+  line-height: 1.08;
+  overflow-wrap: anywhere;
+}
+
+.service-card-grid .big-service-card p {
+  font-size: 11px;
+  line-height: 1.7;
+}
+
+/* Tablet */
+@media (max-width: 1100px) {
+  .service-card-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+/* Mobile */
+@media (max-width: 760px) {
+  .service-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px;
+  }
+
+  .service-card-grid .big-service-card {
+    padding: 18px;
+  }
+}
+
+@media (max-width: 480px) {
+  .service-card-grid {
+    grid-template-columns: 1fr;
   }
 }
