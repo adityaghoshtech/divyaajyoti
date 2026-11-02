@@ -131,7 +131,7 @@ export default function SiteVisitPage() {
 
   if (property === undefined) {
     return (
-      <main>
+      <main className="site-visit-page">
         <section className="section">
           <div
             className="container"
@@ -173,7 +173,7 @@ export default function SiteVisitPage() {
 
   if (property === null) {
     return (
-      <main>
+      <main className="site-visit-page">
         <section className="section">
           <div
             className="container"
@@ -243,7 +243,7 @@ export default function SiteVisitPage() {
 
   if (submitted) {
     return (
-      <main>
+      <main className="site-visit-page">
         <section className="pagehero">
           <div className="container">
             <div className="eyebrow">
@@ -441,7 +441,7 @@ export default function SiteVisitPage() {
   ========================================================= */
 
   return (
-    <main>
+    <main className="site-visit-page">
       {/* =====================================================
           HEADER
       ===================================================== */}

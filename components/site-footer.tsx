@@ -21,7 +21,7 @@ export function SiteFooter() {
           <div className="brand">
             <span className="footer-brand-mark">
               <Image
-                src="/logo.png"
+                src="/divya-logo.png"
                 alt="Divyajyoti Logo"
                 width={52}
                 height={52}

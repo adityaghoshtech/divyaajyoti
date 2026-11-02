@@ -1,3 +1,4 @@
+
 import { mutationGeneric, queryGeneric } from "convex/server";
 import { v } from "convex/values";
 
@@ -9,24 +10,37 @@ export const create = mutationGeneric({
     email: v.optional(v.string()),
     source: v.string(),
     message: v.optional(v.string()),
+    interest: v.optional(v.string()),
   },
 
   handler: async (ctx, args) => {
     return await ctx.db.insert("leads", {
-      ...args,
+      name: args.name,
+      phone: args.phone,
+      email: args.email,
+      source: args.source,
+      message: args.message,
+      interest: args.interest,
+
       status: "new",
+      priority: "normal",
+
       createdAt: Date.now(),
     });
   },
 });
 
-// Get all leads for the admin CSV export
+// Get all leads for admin
 export const getAll = queryGeneric({
   args: {},
 
   handler: async (ctx) => {
-    const leads = await ctx.db.query("leads").collect();
+    const leads = await ctx.db
+      .query("leads")
+      .collect();
 
-    return leads.sort((a, b) => b.createdAt - a.createdAt);
+    return leads.sort(
+      (a, b) => b.createdAt - a.createdAt
+    );
   },
 });

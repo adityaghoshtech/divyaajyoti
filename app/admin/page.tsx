@@ -1494,7 +1494,7 @@ function tableFields(
         ["title", "Title"],
         ["type", "Category"],
         ["location", "Location"],
-        ["price", "Price"],
+        ["pricingOptions", "Pricing Options"],
         ["beds", "Beds"],
         ["baths", "Baths"],
         ["area", "Area"],
@@ -1602,6 +1602,27 @@ function renderCell(
   row: any,
   categories: any[],
 ) {
+  if (key === "pricingOptions") {
+    const options = Array.isArray(value) ? value : [];
+
+    if (options.length === 0) {
+      return money(row.price);
+    }
+
+    return (
+      <div style={{ display: "grid", gap: 5, minWidth: 150 }}>
+        {options.map((option: any, index: number) => (
+          <div key={`${option.label}-${index}`}>
+            <strong>{String(option.label || "Option")}</strong>
+            <span style={{ display: "block", color: "#718096", fontSize: 12 }}>
+              {money(option.price)}
+            </span>
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   if (
     key === "price" ||
     key === "amount"
@@ -2273,6 +2294,7 @@ function Field({
       "vastuDescription",
       "walkthroughDescription",
       "contactDescription",
+      "videosText",
     ].includes(field.key)
   ) {
     return (
@@ -2547,6 +2569,123 @@ function Field({
           <option value="high">High</option>
           <option value="urgent">Urgent</option>
         </select>
+      </div>
+    );
+  }
+
+  // =======================================================
+  // PROPERTY PRICING OPTIONS
+  // =======================================================
+
+  if (
+    table === "properties" &&
+    field.key === "pricingOptions"
+  ) {
+    const options = Array.isArray(value) ? value : [];
+
+    const updateOption = (
+      index: number,
+      key: "label" | "price",
+      nextValue: string | number,
+    ) => {
+      const updated = options.map((option: any, i: number) =>
+        i === index
+          ? { ...option, [key]: nextValue }
+          : option,
+      );
+      onChange(updated);
+    };
+
+    return (
+      <div className="dj-field full">
+        <span>{field.label}</span>
+
+        <div style={{ display: "grid", gap: 14 }}>
+          {options.map((option: any, index: number) => (
+            <div
+              key={index}
+              style={{
+                display: "grid",
+                gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr) 44px",
+                gap: 12,
+                alignItems: "end",
+                padding: 15,
+                border: "1px solid #e2e8f0",
+                borderRadius: 10,
+                background: "#fafbfd",
+              }}
+            >
+              <div className="dj-field">
+                <span>Configuration / Label</span>
+                <input
+                  type="text"
+                  value={option.label ?? ""}
+                  placeholder="e.g. 1 BHK, 2 BHK, Studio, Plot"
+                  onChange={(event) =>
+                    updateOption(index, "label", event.target.value)
+                  }
+                />
+              </div>
+
+              <div className="dj-field">
+                <span>Price (INR)</span>
+                <input
+                  type="number"
+                  min="0"
+                  value={option.price ?? 0}
+                  onChange={(event) =>
+                    updateOption(index, "price", Number(event.target.value))
+                  }
+                />
+              </div>
+
+              <button
+                type="button"
+                title="Remove pricing option"
+                aria-label={`Remove pricing option ${index + 1}`}
+                onClick={() =>
+                  onChange(options.filter((_: any, i: number) => i !== index))
+                }
+                style={{
+                  height: 44,
+                  width: 44,
+                  border: "1px solid #f1caca",
+                  borderRadius: 8,
+                  background: "#fff5f5",
+                  color: "#c53030",
+                  cursor: "pointer",
+                }}
+              >
+                <Trash2 size={17} />
+              </button>
+            </div>
+          ))}
+
+          <button
+            type="button"
+            onClick={() => onChange([...options, { label: "", price: 0 }])}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 8,
+              padding: 13,
+              border: "1px dashed #b17b30",
+              borderRadius: 8,
+              background: "#fffaf2",
+              color: "#a16d25",
+              fontWeight: 700,
+              cursor: "pointer",
+            }}
+          >
+            <Plus size={17} />
+            Add Pricing Option
+          </button>
+        </div>
+
+        <small className="dj-help">
+          Add different configurations, sizes or property types with their respective prices.
+        </small>
       </div>
     );
   }
@@ -2854,7 +2993,13 @@ function makeInitial(
       title: "",
       slug: "",
       location: "",
-      price: 0,
+      price: base.price ?? 0,
+      pricingOptions:
+        Array.isArray(base.pricingOptions) && base.pricingOptions.length > 0
+          ? base.pricingOptions
+          : Number(base.price ?? 0) > 0
+            ? [{ label: "Starting Price", price: Number(base.price) }]
+            : [],
 
       type:
         categories[0]?.name ??
@@ -2885,7 +3030,14 @@ function makeInitial(
 
       photoFiles: [],
 
-      videoUrl: "",
+      videoUrl: base.videoUrl ?? "",
+      videosText:
+        Array.isArray(base.videos) && base.videos.length > 0
+          ? base.videos
+              .map((video: any) => `${video.title ? `${video.title} | ` : ""}${video.url ?? ""}`)
+              .filter(Boolean)
+              .join("\n")
+          : (base.videoUrl ?? ""),
       brochureUrl: "",
 
       overview: "",
@@ -2925,6 +3077,14 @@ function makeInitial(
     return {
 
       ...property,
+
+      videosText:
+        Array.isArray(property.videos) && property.videos.length > 0
+          ? property.videos
+              .map((video: any) => `${video.title ? `${video.title} | ` : ""}${video.url ?? ""}`)
+              .filter(Boolean)
+              .join("\n")
+          : (property.videoUrl ?? ""),
 
       imagesText:
         (
@@ -3373,6 +3533,60 @@ function cleanForm(
     "properties"
   ) {
 
+    data.pricingOptions = (
+      Array.isArray(form.pricingOptions)
+        ? form.pricingOptions
+        : []
+    )
+      .map((option: any) => ({
+        label: String(option.label ?? "").trim(),
+        price: Number(option.price ?? 0),
+      }))
+      .filter(
+        (option: any) =>
+          option.label &&
+          Number.isFinite(option.price) &&
+          option.price >= 0,
+      );
+
+    // Keep the legacy price field compatible with existing website pages.
+    if (data.pricingOptions.length > 0) {
+      data.price = Math.min(
+        ...data.pricingOptions.map((option: any) => option.price),
+      );
+    }
+
+    // Accept one Google Drive URL per line. A custom title is optional:
+    // "Project Overview | https://drive.google.com/file/d/..."
+    data.videos = String(form.videosText ?? "")
+      .split("\n")
+      .map((line: string, index: number) => {
+        const trimmed = line.trim();
+        if (!trimmed) return null;
+
+        const separatorIndex = trimmed.indexOf("|");
+        const hasCustomTitle = separatorIndex > -1;
+        const title = hasCustomTitle
+          ? trimmed.slice(0, separatorIndex).trim()
+          : `Property Video ${index + 1}`;
+        const url = hasCustomTitle
+          ? trimmed.slice(separatorIndex + 1).trim()
+          : trimmed;
+
+        return url
+          ? { title: title || `Property Video ${index + 1}`, url }
+          : null;
+      })
+      .filter(Boolean);
+
+    // Keep the first link in the legacy field for older page versions.
+    if (data.videos.length > 0) {
+      data.videoUrl = data.videos[0].url;
+    } else {
+      data.videoUrl = "";
+    }
+    delete data.videosText;
+
     data.highlights =
       String(
         form.highlightsText ??
@@ -3537,8 +3751,11 @@ function editorFields(
         ),
 
         f(
-          "price",
-          "Price (INR)",
+          "pricingOptions",
+          "Property Pricing Options",
+          {
+            full: true,
+          },
         ),
 
         f(
@@ -3638,10 +3855,12 @@ function editorFields(
         ),
 
         f(
-          "videoUrl",
-          "Walkthrough video URL",
+          "videosText",
+          "Property videos (Google Drive links)",
           {
             full: true,
+            placeholder:
+              "Paste one Google Drive link per line. Optional: Video title | Google Drive link",
           },
         ),
 

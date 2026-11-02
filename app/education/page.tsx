@@ -341,7 +341,7 @@ export default function EducationPage() {
             </div>
 
             <Link
-              href="/contact"
+              href="/contact?service=learning"
               className="dj-contact-card"
             >
               <span className="dj-contact-icon">

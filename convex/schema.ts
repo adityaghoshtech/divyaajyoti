@@ -14,210 +14,92 @@ export default defineSchema({
   // PROPERTIES
   // =========================================================
 
+  
   properties: defineTable({
+    title: v.string(),
+    slug: v.string(),
+    location: v.string(),
 
-    title:
-      v.string(),
+    price: v.number(),
 
-    slug:
-      v.string(),
-
-    location:
-      v.string(),
-
-    price:
-      v.number(),
-
-    type:
-      v.string(),
-
-    beds:
-      v.number(),
-
-    baths:
-      v.number(),
-
-    area:
-      v.number(),
-
-
-    image:
-      v.optional(
-        v.string(),
-      ),
-
-    images:
-      v.optional(
-        v.array(
-          v.string(),
-        ),
-      ),
-
-
-    status:
-      v.string(),
-
-
-    propertyId:
-      v.optional(
-        v.string(),
-      ),
-
-    verification:
-      v.optional(
-        v.string(),
-      ),
-
-
-    floor:
-      v.optional(
-        v.number(),
-      ),
-
-    totalFloors:
-      v.optional(
-        v.number(),
-      ),
-
-    parking:
-      v.optional(
-        v.string(),
-      ),
-
-    furnishing:
-      v.optional(
-        v.string(),
-      ),
-
-    age:
-      v.optional(
-        v.string(),
-      ),
-
-    possession:
-      v.optional(
-        v.string(),
-      ),
-
-
-    videoUrl:
-      v.optional(
-        v.string(),
-      ),
-
-    brochureUrl:
-      v.optional(
-        v.string(),
-      ),
-
-
-    overview:
-      v.optional(
-        v.string(),
-      ),
-
-    highlights:
-      v.optional(
-        v.array(
-          v.string(),
-        ),
-      ),
-
-    keyFeatures:
-      v.optional(
-        v.array(
-          v.string(),
-        ),
-      ),
-
-    amenities:
-      v.optional(
-        v.array(
-          v.string(),
-        ),
-      ),
-
-
-    floorPlanTitle:
-      v.optional(
-        v.string(),
-      ),
-
-    floorPlanArea:
-      v.optional(
-        v.string(),
-      ),
-
-    floorPlanPrice:
-      v.optional(
-        v.number(),
-      ),
-
-    floorPlanImage:
-      v.optional(
-        v.string(),
-      ),
-
-
-    nearbyPlaces:
-      v.optional(
-        v.array(
-          v.string(),
-        ),
-      ),
-
-
-    vastuTitle:
-      v.optional(
-        v.string(),
-      ),
-
-    vastuDescription:
-      v.optional(
-        v.string(),
-      ),
-
-
-    walkthroughTitle:
-      v.optional(
-        v.string(),
-      ),
-
-    walkthroughDescription:
-      v.optional(
-        v.string(),
-      ),
-
-
-    contactHeading:
-      v.optional(
-        v.string(),
-      ),
-
-    contactDescription:
-      v.optional(
-        v.string(),
-      ),
-
-
-    updatedAt:
-      v.optional(
-        v.number(),
-      ),
-
-  })
-    .index(
-      "by_slug",
-      ["slug"],
-    )
-    .index(
-      "by_status",
-      ["status"],
-    )
-    .index(
-      "by_type",
-      ["type"],
+    pricingOptions: v.optional(
+      v.array(
+        v.object({
+          label: v.string(),
+          price: v.number(),
+        })
+      )
     ),
+
+    type: v.string(),
+    beds: v.number(),
+    baths: v.number(),
+    area: v.number(),
+
+    // Main property image
+    image: v.optional(v.string()),
+
+    // Multiple property images
+    images: v.optional(v.array(v.string())),
+
+    // Compatibility field for gallery URLs entered as text
+    galleryImages: v.optional(v.array(v.string())),
+    galleryImageUrls: v.optional(v.string()),
+
+    status: v.string(),
+
+    propertyId: v.optional(v.string()),
+    verification: v.optional(v.string()),
+
+    floor: v.optional(v.number()),
+    totalFloors: v.optional(v.number()),
+    parking: v.optional(v.string()),
+    furnishing: v.optional(v.string()),
+    age: v.optional(v.string()),
+    possession: v.optional(v.string()),
+
+    // Single video (legacy compatibility)
+    videoUrl: v.optional(v.string()),
+
+    // Multiple property videos
+    videos: v.optional(
+      v.array(
+        v.object({
+          title: v.string(),
+          url: v.string(),
+        })
+      )
+    ),
+
+    brochureUrl: v.optional(v.string()),
+
+    overview: v.optional(v.string()),
+    highlights: v.optional(v.array(v.string())),
+    keyFeatures: v.optional(v.array(v.string())),
+    amenities: v.optional(v.array(v.string())),
+
+    floorPlanTitle: v.optional(v.string()),
+    floorPlanArea: v.optional(v.string()),
+    floorPlanPrice: v.optional(v.number()),
+    floorPlanImage: v.optional(v.string()),
+
+    nearbyPlaces: v.optional(v.array(v.string())),
+
+    vastuTitle: v.optional(v.string()),
+    vastuDescription: v.optional(v.string()),
+
+    walkthroughTitle: v.optional(v.string()),
+    walkthroughDescription: v.optional(v.string()),
+
+    contactHeading: v.optional(v.string()),
+    contactDescription: v.optional(v.string()),
+
+    updatedAt: v.optional(v.number()),
+  })
+    .index("by_slug", ["slug"])
+    .index("by_status", ["status"])
+    .index("by_type", ["type"]),
+
 
 
   // =========================================================

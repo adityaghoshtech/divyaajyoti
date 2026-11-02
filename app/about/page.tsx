@@ -333,9 +333,8 @@ export default function AboutPage() {
 
               <h2>
 
-                Bringing different aspects of life together,
-
-                <span> with clarity and purpose.</span>
+                Divya Jyoti is a multi-service platform
+                <span> guidance, practical solutions, education, and opportunities under one roof.</span>
 
               </h2>
 

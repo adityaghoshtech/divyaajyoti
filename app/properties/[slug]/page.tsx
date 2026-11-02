@@ -1,4 +1,6 @@
+
 import Link from "next/link";
+import PropertyVideoPlayer from "@/components/PropertyVideoPlayer";
 import {
   ArrowLeft,
   ArrowUpRight,
@@ -18,6 +20,70 @@ import {
 } from "lucide-react";
 
 import { getProperties } from "@/lib/property-source";
+
+// Convert YouTube URLs into embeddable URLs
+function getYouTubeEmbedUrl(url?: string) {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.replace(/^www\./, "");
+
+    let videoId = "";
+
+    if (hostname === "youtu.be") {
+      videoId = parsed.pathname.split("/")[1] || "";
+    } else if (
+      hostname === "youtube.com" ||
+      hostname === "m.youtube.com" ||
+      hostname === "youtube-nocookie.com"
+    ) {
+      videoId =
+        parsed.searchParams.get("v") ||
+        parsed.pathname.match(
+          /^\/(?:embed|shorts)\/([^/?]+)/
+        )?.[1] ||
+        "";
+    }
+
+    if (!/^[a-zA-Z0-9_-]{11}$/.test(videoId)) {
+      return null;
+    }
+
+    return `https://www.youtube-nocookie.com/embed/${videoId}`;
+  } catch {
+    return null;
+  }
+}
+
+// Convert common Google Drive sharing links into the Drive video player URL.
+// The Drive file must be shared as "Anyone with the link - Viewer".
+function getGoogleDrivePreviewUrl(url?: string) {
+  if (!url) return null;
+
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.replace(/^www\./, "");
+
+    if (hostname !== "drive.google.com" && hostname !== "docs.google.com") {
+      return null;
+    }
+
+    const pathMatch = parsed.pathname.match(/\/(?:file\/d|uc)\/([^/]+)/);
+    const fileId =
+      pathMatch?.[1] ||
+      parsed.searchParams.get("id") ||
+      "";
+
+    if (!/^[a-zA-Z0-9_-]{10,}$/.test(fileId)) {
+      return null;
+    }
+
+    return `https://drive.google.com/file/d/${fileId}/preview`;
+  } catch {
+    return null;
+  }
+}
 
 export default async function PropertyDetails({
   params,
@@ -61,10 +127,78 @@ export default async function PropertyDetails({
     );
   }
 
-  const price =
-    typeof property.price === "number"
-      ? `₹${Number(property.price).toLocaleString("en-IN")}`
-      : property.price;
+  // Use every gallery image saved from the admin form. Older records fall back to the main image.
+  const propertyImages: string[] = Array.from(
+    new Set(
+      [
+        ...(((property as any).images as string[] | undefined) ?? []),
+        property.image,
+      ].filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+    )
+  );
+
+  // Support multiple configurations while keeping old properties compatible.
+  const rawPricingOptions = (property as any).pricingOptions;
+  const pricingOptions: Array<{ label: string; price: number }> =
+    Array.isArray(rawPricingOptions)
+      ? rawPricingOptions
+          .map((option: any) => ({
+            label: String(option?.label ?? "").trim(),
+            price: Number(option?.price),
+          }))
+          .filter(
+            (option: { label: string; price: number }) =>
+              option.label && Number.isFinite(option.price) && option.price >= 0,
+          )
+          .sort((a: { label: string; price: number }, b: { label: string; price: number }) => a.price - b.price)
+      : [];
+
+  // Fallback for older records that only contain `price`.
+  const displayPricingOptions =
+    pricingOptions.length > 0
+      ? pricingOptions
+      : typeof property.price === "number"
+        ? [{
+            label: property.beds ? `${property.beds} Bedroom Configuration` : "Starting Price",
+            price: property.price,
+          }]
+        : [];
+
+  const formatPrice = (amount: number) =>
+    `₹${amount.toLocaleString("en-IN")}`;
+
+  const startingPrice = displayPricingOptions[0]
+    ? formatPrice(displayPricingOptions[0].price)
+    : "Price on request";
+
+  // Support multiple Google Drive / YouTube walkthrough links.
+  // Older properties with only videoUrl continue to work.
+  const propertyVideosRaw =
+    (property as typeof property & {
+      videos?: { title?: string; url?: string }[];
+      videoUrl?: string;
+      walkthroughVideoUrl?: string;
+      walkthroughUrl?: string;
+    }).videos;
+
+  const propertyVideos =
+    Array.isArray(propertyVideosRaw) && propertyVideosRaw.length > 0
+      ? propertyVideosRaw
+          .filter((video) => typeof video.url === "string" && video.url.trim())
+          .map((video, index) => ({
+            title: video.title?.trim() || `Property Video ${index + 1}`,
+            url: video.url!.trim(),
+          }))
+      : [
+          {
+            title: "Property walkthrough",
+            url:
+              (property as any).videoUrl ||
+              (property as any).walkthroughVideoUrl ||
+              (property as any).walkthroughUrl ||
+              "",
+          },
+        ].filter((video) => Boolean(video.url));
 
   return (
     <main>
@@ -102,7 +236,10 @@ export default async function PropertyDetails({
             </div>
 
             <div className="property-price">
-              {price}
+              <span style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>
+                Starting price
+              </span>
+              {startingPrice}
             </div>
 
           </div>
@@ -130,48 +267,28 @@ export default async function PropertyDetails({
               {/* GALLERY */}
 
               <div className="property-gallery">
-
                 <div
                   className="property-gallery-main"
-                  style={{
-                    backgroundImage: `url(${property.image})`,
-                  }}
+                  style={{ backgroundImage: `url(${propertyImages[0] || property.image})` }}
                 >
-
                   <div className="gallery-overlay">
-
-                    <span>
-                      Property Gallery
-                    </span>
-
-                    <button
-                      type="button"
-                      className="gallery-view-button"
-                    >
-                      View photos & videos
-                      <ArrowUpRight size={14} />
-                    </button>
-
+                    <span>Property Gallery ({propertyImages.length} photos)</span>
+                    <a href="#photos" className="gallery-view-button">
+                      View photos & videos <ArrowUpRight size={14} />
+                    </a>
                   </div>
-
                 </div>
 
                 <div className="property-gallery-small">
-
-                  <div
-                    style={{
-                      backgroundImage: `url(${property.image})`,
-                    }}
-                  />
-
-                  <div
-                    style={{
-                      backgroundImage: `url(${property.image})`,
-                    }}
-                  />
-
+                  {propertyImages.slice(1, 3).map((imageUrl, index) => (
+                    <div
+                      key={`${imageUrl}-${index}`}
+                      role="img"
+                      aria-label={`Property gallery image ${index + 2}`}
+                      style={{ backgroundImage: `url(${imageUrl})` }}
+                    />
+                  ))}
                 </div>
-
               </div>
 
 
@@ -425,36 +542,48 @@ export default async function PropertyDetails({
                 </div>
 
                 <h2>
-                  Explore the available layout.
+                  Explore the available configurations.
                 </h2>
 
-                <div className="floor-plan-card">
+                <div
+                  style={{
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                    gap: 16,
+                    marginTop: 24,
+                  }}
+                >
+                  {displayPricingOptions.map((option, index) => (
+                    <div
+                      key={`${option.label}-${index}`}
+                      className="floor-plan-card"
+                      style={{
+                        display: "flex",
+                        flexDirection: "column",
+                        alignItems: "stretch",
+                        gap: 14,
+                        padding: 20,
+                      }}
+                    >
+                      <div>
+                        <strong>{option.label}</strong>
+                        <span style={{ display: "block", marginTop: 8 }}>
+                          {property.area ? `${property.area} sq.ft. (indicative)` : "Area on request"}
+                        </span>
+                        <strong className="floor-price" style={{ display: "block", marginTop: 12 }}>
+                          {formatPrice(option.price)}
+                        </strong>
+                      </div>
 
-                  <div>
-
-                    <strong>
-                      {property.beds} Bedroom
-                      Configuration
-                    </strong>
-
-                    <span>
-                      {property.area} sq.ft.
-                    </span>
-
-                    <strong className="floor-price">
-                      {price}
-                    </strong>
-
-                  </div>
-
-                  <button
-                    type="button"
-                    className="btn btn-light"
-                  >
-                    View floor plan
-                    <ArrowUpRight size={14} />
-                  </button>
-
+                      <Link
+                        href={`/contact?service=property&property=${encodeURIComponent(property.slug)}&configuration=${encodeURIComponent(option.label)}`}
+                        className="btn btn-light"
+                      >
+                        Enquire about {option.label}
+                        <ArrowUpRight size={14} />
+                      </Link>
+                    </div>
+                  ))}
                 </div>
 
               </section>
@@ -523,11 +652,11 @@ export default async function PropertyDetails({
                 </p>
 
                 <Link
-                  href={`/consultation?service=vastu&property=${property.slug}`}
+                  href={`/contact?service=vastu&property=${property.slug}`}
                   className="btn btn-dark"
                   style={{ marginTop: 20 }}
                 >
-                  Request Vastu consultation
+                  Contact our team
                   <ArrowUpRight size={15} />
                 </Link>
 
@@ -551,26 +680,40 @@ export default async function PropertyDetails({
                   See the property in detail.
                 </h2>
 
-                <div className="property-video-box">
-
-                  <div>
-
-                    <div className="video-icon">
-                      ▶
-                    </div>
-
-                    <strong>
-                      Property walkthrough
-                    </strong>
-
-                    <p>
-                      Property photos and video
-                      walkthroughs can be added here.
-                    </p>
-
+                {propertyImages.length > 0 && (
+                  <div
+                    className="property-photo-grid"
+                    style={{
+                      display: "grid",
+                      gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+                      gap: 14,
+                      margin: "24px 0 36px",
+                    }}
+                  >
+                    {propertyImages.map((imageUrl, index) => (
+                      <a
+                        key={`${imageUrl}-${index}`}
+                        href={imageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        aria-label={`Open property photo ${index + 1}`}
+                        style={{ display: "block", aspectRatio: "4 / 3", overflow: "hidden", background: "#eee" }}
+                      >
+                        <img
+                          src={imageUrl}
+                          alt={`${property.title} property photo ${index + 1}`}
+                          loading="lazy"
+                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                        />
+                      </a>
+                    ))}
                   </div>
+                )}
 
-                </div>
+                <PropertyVideoPlayer
+                  videos={propertyVideos}
+                  propertyTitle={property.title}
+                />
 
               </section>
 
@@ -616,7 +759,7 @@ export default async function PropertyDetails({
 
 
               <Link
-                href={`/consultation?service=property&property=${property.slug}`}
+                href={`/contact?service=property&property=${property.slug}`}
                 className="btn btn-dark"
               >
                 <Phone size={15} />

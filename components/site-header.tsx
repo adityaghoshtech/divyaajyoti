@@ -178,7 +178,7 @@ export function SiteHeader() {
           <div className="brand-mark">
 
             <Image
-              src="/logo.png"
+              src="/divya-logo.png"
               alt="Divyajyoti Logo"
               width={100}
               height={76}
@@ -329,7 +329,7 @@ export function SiteHeader() {
 
           <Link
             className="btn btn-dark btn-sm header-consultation-btn"
-            href="/contact"
+            href="/consultation"
           >
 
             <span>

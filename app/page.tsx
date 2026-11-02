@@ -280,7 +280,7 @@ export default function Home() {
               <span className="service-index">03</span>
               <Crown className="service-big-icon" />
 
-              <h3 className="display">ONLINE Shopping</h3>
+              <h3 className="display">ONLINE Shopping & Services</h3>
 
               <p>
                 Our online shopping experience is coming soon.
