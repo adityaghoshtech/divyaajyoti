@@ -10,6 +10,7 @@ export type SiteProperty = (typeof fallbackProperties)[number] & {
   images?: string[];
   videos?: { title: string; url: string }[];
   pricingOptions?: { label: string; price: number }[];
+  brochureUrl?: string;
 };
 
 type ConvexProperty = {
@@ -30,6 +31,7 @@ type ConvexProperty = {
   walkthroughVideoUrl?: string;
   walkthroughUrl?: string;
   videos?: { title: string; url: string }[];
+  brochureUrl?: string;
 };
 
 function normalizeGoogleDriveImageUrl(url?: string): string | undefined {
@@ -37,12 +39,12 @@ function normalizeGoogleDriveImageUrl(url?: string): string | undefined {
 
   const trimmed = url.trim();
 
-  // Already a direct Convex Storage or other image URL.
+
   if (!trimmed.includes("drive.google.com")) {
     return trimmed;
   }
 
-  // Extract the Google Drive file ID.
+  
   const match =
     trimmed.match(/\/file\/d\/([^/]+)/) ||
     trimmed.match(/[?&]id=([^&]+)/);
@@ -50,6 +52,42 @@ function normalizeGoogleDriveImageUrl(url?: string): string | undefined {
   if (!match?.[1]) return trimmed;
 
   return `https://drive.google.com/thumbnail?id=${match[1]}&sz=w2000`;
+}
+
+/**
+ * Normalize common Google Drive brochure sharing links.
+ * The Drive file must be shared as "Anyone with the link - Viewer".
+ */
+function normalizeBrochureUrl(url?: string): string | undefined {
+  if (!url || !url.trim()) return undefined;
+
+  const trimmed = url.trim();
+
+  try {
+    const parsed = new URL(trimmed);
+    const hostname = parsed.hostname.replace(/^www\./, "");
+
+    if (hostname !== "drive.google.com") {
+      return trimmed;
+    }
+
+    const pathMatch = parsed.pathname.match(
+      /\/(?:file\/d|document\/d)\/([^/]+)/
+    );
+
+    const fileId =
+      pathMatch?.[1] ||
+      parsed.searchParams.get("id") ||
+      "";
+
+    if (!/^[a-zA-Z0-9_-]{10,}$/.test(fileId)) {
+      return trimmed;
+    }
+
+    return `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+  } catch {
+    return trimmed;
+  }
 }
 
 function formatPrice(value: number) {
@@ -101,10 +139,11 @@ function mapProperty(property: ConvexProperty): SiteProperty {
       fallbackProperties[0].image,
     images,
     tag: property.status === "active" ? "Available" : property.status,
-
+ 
     videoUrl,
     videos: property.videos || [],
     pricingOptions: normalizedPricing || [],
+    brochureUrl: normalizeBrochureUrl(property.brochureUrl),
   };
 }
 

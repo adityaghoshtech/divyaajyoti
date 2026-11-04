@@ -85,6 +85,43 @@ function getGoogleDrivePreviewUrl(url?: string) {
   }
 }
 
+// Normalize brochure URL.
+// Supports Google Drive sharing links and ordinary PDF URLs.
+function getBrochureUrl(url?: string) {
+  if (!url || !url.trim()) return "";
+
+  const trimmed = url.trim();
+
+  try {
+    const parsed = new URL(trimmed);
+    const hostname = parsed.hostname.replace(/^www\./, "");
+
+    if (
+      hostname === "drive.google.com" ||
+      hostname === "docs.google.com"
+    ) {
+      const pathMatch = parsed.pathname.match(
+        /\/(?:file\/d|document\/d)\/([^/]+)/
+      );
+
+      const fileId =
+        pathMatch?.[1] ||
+        parsed.searchParams.get("id") ||
+        "";
+
+      if (!/^[a-zA-Z0-9_-]{10,}$/.test(fileId)) {
+        return trimmed;
+      }
+
+      return `https://drive.google.com/file/d/${fileId}/view?usp=sharing`;
+    }
+
+    return trimmed;
+  } catch {
+    return trimmed;
+  }
+}
+
 export default async function PropertyDetails({
   params,
 }: {
@@ -127,18 +164,23 @@ export default async function PropertyDetails({
     );
   }
 
-  // Use every gallery image saved from the admin form. Older records fall back to the main image.
+  // Use every gallery image saved from the admin form.
+  // Older records fall back to the main image.
   const propertyImages: string[] = Array.from(
     new Set(
       [
         ...(((property as any).images as string[] | undefined) ?? []),
         property.image,
-      ].filter((url): url is string => typeof url === "string" && url.trim().length > 0)
+      ].filter(
+        (url): url is string =>
+          typeof url === "string" && url.trim().length > 0
+      )
     )
   );
 
   // Support multiple configurations while keeping old properties compatible.
   const rawPricingOptions = (property as any).pricingOptions;
+
   const pricingOptions: Array<{ label: string; price: number }> =
     Array.isArray(rawPricingOptions)
       ? rawPricingOptions
@@ -148,9 +190,16 @@ export default async function PropertyDetails({
           }))
           .filter(
             (option: { label: string; price: number }) =>
-              option.label && Number.isFinite(option.price) && option.price >= 0,
+              option.label &&
+              Number.isFinite(option.price) &&
+              option.price >= 0
           )
-          .sort((a: { label: string; price: number }, b: { label: string; price: number }) => a.price - b.price)
+          .sort(
+            (
+              a: { label: string; price: number },
+              b: { label: string; price: number }
+            ) => a.price - b.price
+          )
       : [];
 
   // Fallback for older records that only contain `price`.
@@ -158,10 +207,14 @@ export default async function PropertyDetails({
     pricingOptions.length > 0
       ? pricingOptions
       : typeof property.price === "number"
-        ? [{
-            label: property.beds ? `${property.beds} Bedroom Configuration` : "Starting Price",
-            price: property.price,
-          }]
+        ? [
+            {
+              label: property.beds
+                ? `${property.beds} Bedroom Configuration`
+                : "Starting Price",
+              price: property.price,
+            },
+          ]
         : [];
 
   const formatPrice = (amount: number) =>
@@ -184,7 +237,10 @@ export default async function PropertyDetails({
   const propertyVideos =
     Array.isArray(propertyVideosRaw) && propertyVideosRaw.length > 0
       ? propertyVideosRaw
-          .filter((video) => typeof video.url === "string" && video.url.trim())
+          .filter(
+            (video) =>
+              typeof video.url === "string" && video.url.trim()
+          )
           .map((video, index) => ({
             title: video.title?.trim() || `Property Video ${index + 1}`,
             url: video.url!.trim(),
@@ -199,6 +255,13 @@ export default async function PropertyDetails({
               "",
           },
         ].filter((video) => Boolean(video.url));
+
+  // BROCHURE: Read the URL supplied by Convex/property-source.
+  const brochureUrl = getBrochureUrl(
+    (property as typeof property & {
+      brochureUrl?: string;
+    }).brochureUrl
+  );
 
   return (
     <main>
@@ -236,7 +299,14 @@ export default async function PropertyDetails({
             </div>
 
             <div className="property-price">
-              <span style={{ display: "block", fontSize: 12, fontWeight: 500, marginBottom: 4 }}>
+              <span
+                style={{
+                  display: "block",
+                  fontSize: 12,
+                  fontWeight: 500,
+                  marginBottom: 4,
+                }}
+              >
                 Starting price
               </span>
               {startingPrice}
@@ -269,10 +339,15 @@ export default async function PropertyDetails({
               <div className="property-gallery">
                 <div
                   className="property-gallery-main"
-                  style={{ backgroundImage: `url(${propertyImages[0] || property.image})` }}
+                  style={{
+                    backgroundImage: `url(${propertyImages[0] || property.image})`,
+                  }}
                 >
                   <div className="gallery-overlay">
-                    <span>Property Gallery ({propertyImages.length} photos)</span>
+                    <span>
+                      Property Gallery ({propertyImages.length} photos)
+                    </span>
+
                     <a href="#photos" className="gallery-view-button">
                       View photos & videos <ArrowUpRight size={14} />
                     </a>
@@ -567,10 +642,17 @@ export default async function PropertyDetails({
                     >
                       <div>
                         <strong>{option.label}</strong>
+
                         <span style={{ display: "block", marginTop: 8 }}>
-                          {property.area ? `${property.area} sq.ft. (indicative)` : "Area on request"}
+                          {property.area
+                            ? `${property.area} sq.ft. (indicative)`
+                            : "Area on request"}
                         </span>
-                        <strong className="floor-price" style={{ display: "block", marginTop: 12 }}>
+
+                        <strong
+                          className="floor-price"
+                          style={{ display: "block", marginTop: 12 }}
+                        >
                           {formatPrice(option.price)}
                         </strong>
                       </div>
@@ -697,13 +779,23 @@ export default async function PropertyDetails({
                         target="_blank"
                         rel="noreferrer"
                         aria-label={`Open property photo ${index + 1}`}
-                        style={{ display: "block", aspectRatio: "4 / 3", overflow: "hidden", background: "#eee" }}
+                        style={{
+                          display: "block",
+                          aspectRatio: "4 / 3",
+                          overflow: "hidden",
+                          background: "#eee",
+                        }}
                       >
                         <img
                           src={imageUrl}
                           alt={`${property.title} property photo ${index + 1}`}
                           loading="lazy"
-                          style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }}
+                          style={{
+                            width: "100%",
+                            height: "100%",
+                            objectFit: "cover",
+                            display: "block",
+                          }}
                         />
                       </a>
                     ))}
@@ -776,13 +868,36 @@ export default async function PropertyDetails({
               </Link>
 
 
-              <button
-                type="button"
-                className="btn btn-light"
-              >
-                <Download size={15} />
-                Request brochure
-              </button>
+              {/* =================================================
+                  WORKING BROCHURE BUTTON
+              ================================================= */}
+
+              {brochureUrl ? (
+                <a
+                  href={brochureUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="btn btn-light"
+                  aria-label={`View ${property.title} brochure`}
+                >
+                  <Download size={15} />
+                  Request brochure
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  className="btn btn-light"
+                  disabled
+                  title="No brochure has been uploaded for this property."
+                  style={{
+                    opacity: 0.6,
+                    cursor: "not-allowed",
+                  }}
+                >
+                  <Download size={15} />
+                  Brochure currently unavailable
+                </button>
+              )}
 
 
               <div className="property-contact-divider" />

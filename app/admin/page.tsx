@@ -15,7 +15,7 @@ import {
 } from "convex/react";
 
 import { api } from "../../convex/_generated/api";
-
+import AdminLogoutButton from "@/components/admin-logout-button";
 import {
   ArrowUpRight,
   Building2,
@@ -436,6 +436,8 @@ export default function AdminPage() {
               View website
               <ArrowUpRight size={14} />
             </a>
+
+            <AdminLogoutButton />
 
           </div>
 
